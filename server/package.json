@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
+    "seed": "node scripts/seed.js",
     "start": "node src/server.js"
   },
   "dependencies": {
