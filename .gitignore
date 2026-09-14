@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+package-lock.json.backup
+*/node_modules/
+
+# Production builds
+dist/
+dist-ssr/
+build/
+*.local
+
+# Environment variables
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Gemini and system generated
+.gemini/
+.agents/
