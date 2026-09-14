@@ -16,12 +16,15 @@ import {
   RefreshCw,
   ExternalLink,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  LogIn
 } from 'lucide-react';
 import { fetchUserBookings, cancelBooking } from '../api/bookingApi.js';
 import { fetchUserFavorites, removeFavorite } from '../api/favoriteApi.js';
+import { useAuth } from '../context/AuthContext.js';
 
 export default function UserDashboard({ onSelectListing, onExplore }) {
+  const { user, isAuthenticated, openAuthModal, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'wishlist' | 'reviews' | 'settings'
 
   // Bookings state
@@ -111,30 +114,62 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
           <div className="flex items-center space-x-4 sm:space-x-5">
             <div className="relative">
               <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
-                alt="Shreya Patel"
+                src={
+                  user?.avatar ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80'
+                }
+                alt={user?.name || 'Guest User'}
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-3 border-white/20 shadow-md"
               />
-              <span className="absolute bottom-0 right-0 bg-emerald-500 w-4 h-4 rounded-full border-2 border-slate-900" title="Active"></span>
+              <span
+                className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-900 ${
+                  isAuthenticated ? 'bg-emerald-500' : 'bg-amber-400'
+                }`}
+                title={isAuthenticated ? 'Logged in' : 'Guest Session'}
+              ></span>
             </div>
 
             <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Welcome back, Shreya!</h1>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+                  {isAuthenticated ? `Welcome back, ${user?.name}!` : 'Welcome, Traveler!'}
+                </h1>
                 <span className="bg-brand text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                  Guest Member
+                  {user?.role ? `${user.role} Member` : 'Guest Session'}
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                shreya.patel@airbnb-guest.dev · Member since 2026
+                {user?.email || 'Browse resorts anonymously or log in with MongoDB'} · Member since{' '}
+                {user?.createdAt ? new Date(user.createdAt).getFullYear() : '2026'}
               </p>
-              <div className="flex items-center space-x-4 mt-2 text-xs text-slate-400">
+              <div className="flex items-center space-x-3 mt-2 text-xs text-slate-400">
                 <span className="flex items-center space-x-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Identity Verified</span>
+                  <span>{isAuthenticated ? 'Identity Verified' : 'Standard Guest'}</span>
                 </span>
                 <span>·</span>
                 <span>MongoDB Connected</span>
+                {!isAuthenticated ? (
+                  <>
+                    <span>·</span>
+                    <button
+                      onClick={() => openAuthModal('login')}
+                      className="text-brand font-bold underline hover:text-white transition cursor-pointer"
+                    >
+                      Log in now
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>·</span>
+                    <button
+                      onClick={logout}
+                      className="text-slate-400 hover:text-rose-400 underline transition cursor-pointer"
+                    >
+                      Log out
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

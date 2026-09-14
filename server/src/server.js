@@ -6,6 +6,7 @@ import healthRoutes from './routes/health.js';
 import listingRoutes from '../routes/listingRoutes.js';
 import favoriteRoutes from '../routes/favoriteRoutes.js';
 import bookingRoutes from '../routes/bookingRoutes.js';
+import authRoutes from '../routes/authRoutes.js';
 import { errorHandler, AppError } from '../middleware/errorHandler.js';
 
 // Load environment variables
@@ -37,6 +38,7 @@ app.use((req, res, next) => {
 
 // API Routes
 app.use('/api', healthRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api', listingRoutes);
 app.use('/api', favoriteRoutes);
 app.use('/api', bookingRoutes);

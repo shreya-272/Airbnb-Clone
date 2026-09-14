@@ -28,15 +28,21 @@ import {
   Compass,
   LayoutDashboard,
   ArrowLeft,
-  User
+  User,
+  LogIn,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 import { useListing } from './api/listingApi.js';
 import { checkFavoriteStatus, addFavorite, removeFavorite, fetchUserFavorites } from './api/favoriteApi.js';
 import { submitBooking } from './api/bookingApi.js';
+import { AuthProvider, useAuth } from './context/AuthContext.js';
 import ListingSkeleton from './components/ListingSkeleton.js';
 import ReviewsSection from './components/ReviewsSection.js';
 import ResortCatalog from './components/ResortCatalog.js';
 import UserDashboard from './components/UserDashboard.js';
+import AuthModal from './components/AuthModal.js';
+import AuthPage from './components/AuthPage.js';
 
 // Seeded listing ObjectId in MongoDB (Villa Paradiso canonical ID)
 const DEFAULT_LISTING_ID = '6aa7d647bda80dd066fe3c61';
@@ -55,9 +61,13 @@ const getAmenityIcon = (name) => {
   return <Home className="w-5 h-5 text-airbnb-gray" />;
 };
 
-export default function App() {
-  // Navigation & View state: 'explore' (all resorts) | 'listing' (detail view) | 'dashboard' (user dashboard)
+function AppContent() {
+  const { user, isAuthenticated, openAuthModal, logout } = useAuth();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  // Navigation & View state: 'explore' (all resorts) | 'listing' (detail view) | 'dashboard' (user dashboard) | 'auth' (login/signup page)
   const [currentView, setCurrentView] = useState('explore');
+  const [authPageTab, setAuthPageTab] = useState('login');
   const [selectedListingId, setSelectedListingId] = useState(DEFAULT_LISTING_ID);
 
   // Use custom hook to fetch listing from MongoDB with explicit error categories
@@ -301,15 +311,19 @@ export default function App() {
               )}
             </div>
 
-            {/* Hook Status Pill */}
+            {/* MongoDB User Auth Pill */}
             <div className="flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 text-slate-300">
-              <span className="font-mono text-[11px] text-sky-300">useListing()</span>
-              {loading ? (
-                <span className="text-amber-400 font-medium">fetching...</span>
-              ) : error ? (
-                <span className="text-rose-400 font-medium">error</span>
+              <span className={`h-2 w-2 rounded-full ${isAuthenticated ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+              <span>User:</span>
+              {isAuthenticated ? (
+                <span className="text-emerald-400 font-semibold">{user?.name || 'Logged In'}</span>
               ) : (
-                <span className="text-emerald-400 font-medium">MongoDB Synced</span>
+                <button
+                  onClick={() => openAuthModal('login')}
+                  className="text-sky-300 hover:text-sky-200 underline font-semibold transition cursor-pointer"
+                >
+                  Guest (Click to Login)
+                </button>
               )}
             </div>
 
@@ -405,6 +419,93 @@ export default function App() {
               <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-brand text-brand' : 'text-airbnb-black'}`} />
               <span className="hidden sm:inline">Wishlist</span>
             </button>
+
+            {/* Auth Buttons or User Profile Dropdown */}
+            {isAuthenticated ? (
+              <div className="relative">
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center space-x-2 border border-airbnb-border hover:shadow-md transition rounded-full p-1.5 pl-2.5 cursor-pointer"
+                  title="Account menu"
+                >
+                  <span className="text-xs font-bold text-airbnb-black hidden lg:inline max-w-[100px] truncate">
+                    {user?.name?.split(' ')[0]}
+                  </span>
+                  <img
+                    src={
+                      user?.avatar ||
+                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'
+                    }
+                    alt={user?.name || 'User'}
+                    className="w-7 h-7 rounded-full object-cover border border-white shadow-xs"
+                  />
+                  <ChevronDown className="w-3.5 h-3.5 text-airbnb-gray" />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isUserMenuOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-56 bg-white border border-airbnb-border rounded-2xl shadow-dropdown py-2 z-40 animate-scale-up"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  >
+                    <div className="px-4 py-2 border-b border-airbnb-borderLight">
+                      <div className="font-bold text-xs text-airbnb-black truncate">{user?.name}</div>
+                      <div className="text-[11px] text-airbnb-gray truncate">{user?.email}</div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setCurrentView('dashboard');
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-airbnb-bgSubtle flex items-center space-x-2 text-airbnb-black cursor-pointer"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-airbnb-gray" />
+                      <span>User Dashboard</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleOpenWishlist();
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-airbnb-bgSubtle flex items-center space-x-2 text-airbnb-black cursor-pointer"
+                    >
+                      <Heart className="w-4 h-4 text-airbnb-gray" />
+                      <span>Saved Wishlists</span>
+                    </button>
+
+                    <div className="border-t border-airbnb-borderLight my-1"></div>
+
+                    <button
+                      onClick={() => {
+                        logout();
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-rose-50 text-rose-600 flex items-center space-x-2 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Log out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => openAuthModal('login')}
+                  className="text-xs font-bold text-airbnb-black hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition cursor-pointer"
+                >
+                  Log in
+                </button>
+                <button
+                  onClick={() => openAuthModal('signup')}
+                  className="text-xs font-bold bg-brand hover:bg-brand-hover text-white px-3.5 py-2 rounded-full shadow-xs transition active:scale-95 cursor-pointer"
+                >
+                  Sign up
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -416,6 +517,12 @@ export default function App() {
         <UserDashboard
           onSelectListing={handleSelectListing}
           onExplore={() => setCurrentView('explore')}
+        />
+      ) : currentView === 'auth' ? (
+        <AuthPage
+          defaultTab={authPageTab}
+          onComplete={() => setCurrentView('explore')}
+          onBack={() => setCurrentView('explore')}
         />
       ) : (
         /* Single Resort Detail View */
@@ -1138,7 +1245,19 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Auth Modal for Login and Signup */}
+      <AuthModal />
     </div>
   );
 }
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
 
