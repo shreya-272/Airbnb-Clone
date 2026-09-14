@@ -94,8 +94,52 @@ export const useListing = (id = '6aa7d647bda80dd066fe3c61') => {
   };
 };
 
+/**
+ * Fetch all listings with optional category and search filters.
+ * 
+ * @param {Object} options
+ * @param {string} [options.category]
+ * @param {string} [options.search]
+ * @returns {Promise<Array>} Array of listing documents
+ */
+export const fetchAllListings = async ({ category = '', search = '' } = {}) => {
+  const params = new URLSearchParams();
+  if (category && category.toLowerCase() !== 'all') params.append('category', category);
+  if (search && search.trim()) params.append('search', search.trim());
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+
+  try {
+    let response;
+    try {
+      response = await fetch(`/api/listings${queryString}`);
+    } catch {
+      response = await fetch(`${API_BASE_URL}/api/listings${queryString}`);
+    }
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}));
+      const message = errJson.message || errJson.error || `HTTP error ${response.status}`;
+      const error = new Error(message);
+      error.statusCode = response.status;
+      throw error;
+    }
+
+    const result = await response.json();
+    return result.data || [];
+  } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+      error.message = 'Network connection failed: Unable to fetch resorts from server.';
+    }
+    console.error('[listingApi] Error fetching all listings:', error);
+    throw error;
+  }
+};
+
 export default {
   fetchListingById,
+  fetchAllListings,
   useListing,
 };
+
 

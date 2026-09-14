@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 
 const bookingSchema = new mongoose.Schema(
   {
+    userId: {
+      type: String,
+      default: 'guest-user-default',
+      index: true,
+    },
     listingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Listing',

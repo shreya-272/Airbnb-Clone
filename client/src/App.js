@@ -24,16 +24,22 @@ import {
   Briefcase,
   Home,
   X,
-  Trash2
+  Trash2,
+  Compass,
+  LayoutDashboard,
+  ArrowLeft,
+  User
 } from 'lucide-react';
 import { useListing } from './api/listingApi.js';
 import { checkFavoriteStatus, addFavorite, removeFavorite, fetchUserFavorites } from './api/favoriteApi.js';
 import { submitBooking } from './api/bookingApi.js';
 import ListingSkeleton from './components/ListingSkeleton.js';
 import ReviewsSection from './components/ReviewsSection.js';
+import ResortCatalog from './components/ResortCatalog.js';
+import UserDashboard from './components/UserDashboard.js';
 
-// Seeded listing ObjectId in MongoDB
-const LISTING_ID = '6aa7d647bda80dd066fe3c61';
+// Seeded listing ObjectId in MongoDB (Villa Paradiso canonical ID)
+const DEFAULT_LISTING_ID = '6aa7d647bda80dd066fe3c61';
 
 // Helper icon mapper for amenities
 const getAmenityIcon = (name) => {
@@ -50,8 +56,12 @@ const getAmenityIcon = (name) => {
 };
 
 export default function App() {
+  // Navigation & View state: 'explore' (all resorts) | 'listing' (detail view) | 'dashboard' (user dashboard)
+  const [currentView, setCurrentView] = useState('explore');
+  const [selectedListingId, setSelectedListingId] = useState(DEFAULT_LISTING_ID);
+
   // Use custom hook to fetch listing from MongoDB with explicit error categories
-  const { data: listing, loading, error, isNetworkError, isNotFound, refetch } = useListing(LISTING_ID);
+  const { data: listing, loading, error, isNetworkError, isNotFound, refetch } = useListing(selectedListingId);
 
   // Backend Health state for top system status banner
   const [health, setHealth] = useState({
@@ -81,6 +91,19 @@ export default function App() {
   const [bookingStatus, setBookingStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
   const [bookingErrorMessage, setBookingErrorMessage] = useState(null);
+
+  // Reset booking feedback when switching to a different resort
+  useEffect(() => {
+    setBookingStatus('idle');
+    setBookingConfirmation(null);
+    setBookingErrorMessage(null);
+  }, [selectedListingId]);
+
+  const handleSelectListing = (id) => {
+    setSelectedListingId(id);
+    setCurrentView('listing');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const fetchHealth = async () => {
     setHealth((prev) => ({ ...prev, loading: true, error: null }));
@@ -307,88 +330,142 @@ export default function App() {
       </aside>
 
       {/* Global Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-airbnb-borderLight">
+      <header className="sticky top-0 z-30 bg-white border-b border-airbnb-borderLight shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-20 flex items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center space-x-2 cursor-pointer">
-            <svg className="h-8 w-auto text-brand" viewBox="0 0 32 32" fill="currentColor">
+          <div
+            onClick={() => setCurrentView('explore')}
+            className="flex items-center space-x-2 cursor-pointer group"
+            title="Return to resort catalog"
+          >
+            <svg className="h-8 w-auto text-brand transition-transform group-hover:scale-105" viewBox="0 0 32 32" fill="currentColor">
               <path d="M16 1c2.008 0 3.463.963 4.751 3.269l.533 1.025c1.954 3.83 6.114 12.54 7.1 14.836l.145.353c.667 1.591.91 2.479.96 3.328l.011.389c0 4.002-3.136 7.2-7.1 7.2-2.146 0-4.095-.944-5.4-2.483-1.305 1.539-3.254 2.483-5.4 2.483-3.964 0-7.1-3.198-7.1-7.2 0-1.127.311-2.316.971-3.717l.145-.353c.986-2.296 5.146-11.006 7.1-14.836l.533-1.025C12.537 1.963 13.992 1 16 1zm0 2c-1.328 0-2.348.647-3.414 2.545l-.547 1.054c-1.94 3.8-6.096 12.5-7.067 14.763l-.135.332c-.596 1.264-.837 2.227-.837 3.106 0 2.871 2.228 5.2 5.1 5.2 1.776 0 3.447-.94 4.382-2.463l.518-.847.518.847c.935 1.523 2.606 2.463 4.382 2.463 2.872 0 5.1-2.329 5.1-5.2 0-.879-.241-1.842-.837-3.106l-.135-.332c-.971-2.263-5.127-10.963-7.067-14.763l-.547-1.054C18.348 3.647 17.328 3 16 3zm0 13c2.209 0 4 1.791 4 4 0 1.905-1.332 3.498-3.103 3.899l-.297.049-.6.052c-2.209 0-4-1.791-4-4 0-2.209 1.791-4 4-4zm0 2c-1.105 0-2 .895-2 2 0 .977.701 1.79 1.636 1.967l.178.024.186.009c1.105 0 2-.895 2-2 0-1.105-.895-2-2-2z" />
             </svg>
             <span className="text-xl font-bold text-brand tracking-tight hidden sm:inline">airbnb</span>
           </div>
 
-          {/* Search Pill */}
-          <div className="flex items-center border border-airbnb-border rounded-full py-2 px-4 shadow-sm hover:shadow-md transition cursor-pointer text-sm font-medium space-x-3 divide-x divide-airbnb-border">
-            <span className="pr-3 text-airbnb-black font-semibold">Anywhere</span>
-            <span className="px-3 text-airbnb-black font-semibold">Any week</span>
-            <div className="pl-3 flex items-center space-x-2 text-airbnb-gray">
-              <span>Add guests</span>
-              <div className="bg-brand text-white p-2 rounded-full">
-                <svg className="w-3 h-3 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          {/* Primary View Switcher Navigation Pills */}
+          <nav aria-label="Main Navigation" className="flex items-center bg-airbnb-bgSubtle p-1 rounded-full border border-airbnb-border shadow-xs text-xs font-semibold">
+            <button
+              onClick={() => setCurrentView('explore')}
+              className={`flex items-center space-x-1.5 px-3.5 sm:px-4 py-2 rounded-full transition cursor-pointer ${
+                currentView === 'explore'
+                  ? 'bg-white text-airbnb-black shadow-sm font-bold'
+                  : 'text-airbnb-gray hover:text-airbnb-black'
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Explore Resorts</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('listing')}
+              className={`flex items-center space-x-1.5 px-3.5 sm:px-4 py-2 rounded-full transition cursor-pointer ${
+                currentView === 'listing'
+                  ? 'bg-white text-airbnb-black shadow-sm font-bold'
+                  : 'text-airbnb-gray hover:text-airbnb-black'
+              }`}
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Listing Details</span>
+              <span className="sm:hidden">Details</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className={`flex items-center space-x-1.5 px-3.5 sm:px-4 py-2 rounded-full transition cursor-pointer ${
+                currentView === 'dashboard'
+                  ? 'bg-white text-airbnb-black shadow-sm font-bold'
+                  : 'text-airbnb-gray hover:text-airbnb-black'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
+            </button>
+          </nav>
 
           {/* Right Navigation */}
-          <div className="flex items-center space-x-3 text-sm font-medium">
+          <div className="flex items-center space-x-2 sm:space-x-3 text-sm font-medium">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className={`flex items-center space-x-1.5 px-3 py-2 rounded-full transition cursor-pointer text-xs font-semibold ${
+                currentView === 'dashboard'
+                  ? 'bg-brand/10 text-brand font-bold'
+                  : 'hover:bg-airbnb-bgSubtle text-airbnb-black'
+              }`}
+              title="Open User Dashboard"
+            >
+              <User className="w-4 h-4 text-brand" />
+              <span className="hidden md:inline">Dashboard</span>
+            </button>
+
             <button
               onClick={handleOpenWishlist}
-              className="flex items-center space-x-1.5 hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition cursor-pointer text-airbnb-black"
+              className="flex items-center space-x-1.5 hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition cursor-pointer text-airbnb-black text-xs font-semibold"
               title="View your saved favorites from MongoDB"
             >
               <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-brand text-brand' : 'text-airbnb-black'}`} />
               <span className="hidden sm:inline">Wishlist</span>
             </button>
-            <span className="hidden md:inline cursor-pointer hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition">
-              Airbnb your home
-            </span>
-            <button className="p-2.5 rounded-full hover:bg-airbnb-bgSubtle transition" aria-label="Language & Currency">
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0a8 8 0 1 0 8 8 8.01 8.01 0 0 0-8-8zm5.93 7h-2.5a13.3 13.3 0 0 0-1.07-4.48A6.02 6.02 0 0 1 13.93 7zM8 2.06c.64 1.13 1.18 2.8 1.4 4.94H6.6c.22-2.14.76-3.81 1.4-4.94zM2.07 7A6.02 6.02 0 0 1 5.64 2.52 13.3 13.3 0 0 0 4.57 7zm0 2h2.5a13.3 13.3 0 0 0 1.07 4.48A6.02 6.02 0 0 1 2.07 9zm5.93 4.94c-.64-1.13-1.18-2.8-1.4-4.94h2.8c-.22 2.14-.76 3.81-1.4 4.94zm2.36-4.94h2.5a6.02 6.02 0 0 1-3.57 4.48 13.3 13.3 0 0 0 1.07-4.48z" />
-              </svg>
-            </button>
-            <div className="flex items-center border border-airbnb-border rounded-full p-1.5 space-x-2.5 hover:shadow-md transition cursor-pointer">
-              <svg className="w-4 h-4 ml-1.5 text-airbnb-gray" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="3">
-                <path d="M4 8h24M4 16h24M4 24h24" />
-              </svg>
-              <div className="bg-airbnb-gray text-white rounded-full p-1">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                </svg>
-              </div>
-            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Listing Detail Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
-        {/* Loading State: Skeleton */}
-        {loading ? (
-          <ListingSkeleton />
-        ) : isNotFound ? (
-          /* 404 Listing Not Found State */
-          <div className="my-16 text-center max-w-lg mx-auto p-8 border border-amber-200 bg-amber-50/70 rounded-2xl shadow-sm space-y-4">
-            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700">
-              <Home className="w-8 h-8 stroke-[1.5]" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-amber-900">Listing Not Found (404)</h2>
-              <p className="text-xs text-amber-700 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                The requested listing ID <code className="font-mono bg-amber-100/80 px-1.5 py-0.5 rounded">{LISTING_ID}</code> could not be found in MongoDB. It may have been unpublished or removed.
-              </p>
-            </div>
-            <div className="flex justify-center space-x-3 pt-2">
-              <button
-                onClick={refetch}
-                className="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow transition active:scale-95"
-              >
-                Retry Loading
-              </button>
+      {/* Main View Router */}
+      {currentView === 'explore' ? (
+        <ResortCatalog onSelectListing={handleSelectListing} />
+      ) : currentView === 'dashboard' ? (
+        <UserDashboard
+          onSelectListing={handleSelectListing}
+          onExplore={() => setCurrentView('explore')}
+        />
+      ) : (
+        /* Single Resort Detail View */
+        <main className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+          {/* Breadcrumb Back Button */}
+          <div className="mb-4 flex items-center justify-between">
+            <button
+              onClick={() => setCurrentView('explore')}
+              className="inline-flex items-center space-x-1.5 text-xs font-bold text-airbnb-gray hover:text-airbnb-black transition group py-1 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1 text-airbnb-black" />
+              <span>Back to all luxury resorts</span>
+            </button>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                Resort ID: {selectedListingId}
+              </span>
             </div>
           </div>
+
+          {/* Loading State: Skeleton */}
+          {loading ? (
+            <ListingSkeleton />
+          ) : isNotFound ? (
+            /* 404 Listing Not Found State */
+            <div className="my-16 text-center max-w-lg mx-auto p-8 border border-amber-200 bg-amber-50/70 rounded-2xl shadow-sm space-y-4">
+              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700">
+                <Home className="w-8 h-8 stroke-[1.5]" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-amber-900">Listing Not Found (404)</h2>
+                <p className="text-xs text-amber-700 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                  The requested listing ID <code className="font-mono bg-amber-100/80 px-1.5 py-0.5 rounded">{selectedListingId}</code> could not be found in MongoDB. It may have been unpublished or removed.
+                </p>
+              </div>
+              <div className="flex justify-center space-x-3 pt-2">
+                <button
+                  onClick={() => setCurrentView('explore')}
+                  className="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow transition active:scale-95 cursor-pointer"
+                >
+                  Explore Other Resorts
+                </button>
+                <button
+                  onClick={refetch}
+                  className="border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-semibold px-5 py-2.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+                >
+                  Retry Loading
+                </button>
+              </div>
+            </div>
         ) : isNetworkError ? (
           /* Network Connection Failure State */
           <div className="my-16 text-center max-w-lg mx-auto p-8 border border-rose-200 bg-rose-50/70 rounded-2xl shadow-sm space-y-4">
@@ -907,7 +984,8 @@ export default function App() {
             <ReviewsSection listingId={listing._id} onReviewAdded={() => refetch()} />
           </>
         ) : null}
-      </main>
+        </main>
+      )}
 
       {/* Floating Favorite Error Toast */}
       {favoriteError && (
@@ -1005,7 +1083,12 @@ export default function App() {
                     return (
                       <div
                         key={fav._id}
-                        className="flex items-center space-x-4 p-3 border border-airbnb-border rounded-xl hover:bg-airbnb-bgSubtle/50 transition group"
+                        onClick={() => {
+                          handleSelectListing(itemListingId);
+                          setIsWishlistOpen(false);
+                        }}
+                        className="flex items-center space-x-4 p-3 border border-airbnb-border rounded-xl hover:bg-airbnb-bgSubtle/50 transition group cursor-pointer"
+                        title="Click to view resort details"
                       >
                         <img
                           src={imgUrl}
@@ -1013,7 +1096,7 @@ export default function App() {
                           className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <h5 className="font-semibold text-sm text-airbnb-black truncate">
+                          <h5 className="font-semibold text-sm text-airbnb-black truncate group-hover:text-brand transition">
                             {itemListing.title || 'Villa Paradiso'}
                           </h5>
                           <p className="text-xs text-airbnb-gray truncate mt-0.5">
@@ -1024,7 +1107,10 @@ export default function App() {
                           </p>
                         </div>
                         <button
-                          onClick={() => handleRemoveWishlistItem(itemListingId)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveWishlistItem(itemListingId);
+                          }}
                           className="p-2 text-airbnb-gray hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                           title="Remove from favorites"
                         >

@@ -8,7 +8,25 @@ import { asyncHandler, AppError } from '../middleware/errorHandler.js';
  * @access  Public
  */
 export const getAllListings = asyncHandler(async (req, res, next) => {
-  const listings = await Listing.find();
+  const { category, search } = req.query;
+  const filter = {};
+
+  if (category && category.toLowerCase() !== 'all') {
+    filter.category = new RegExp(`^${category}$`, 'i');
+  }
+
+  if (search && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    filter.$or = [
+      { title: searchRegex },
+      { 'location.city': searchRegex },
+      { 'location.country': searchRegex },
+      { 'location.state': searchRegex },
+      { description: searchRegex },
+    ];
+  }
+
+  const listings = await Listing.find(filter).sort({ createdAt: -1 });
   return res.status(200).json({
     success: true,
     count: listings.length,

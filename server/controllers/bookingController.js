@@ -3,6 +3,19 @@ import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 
+// Helper to extract user/session identifier
+const getUserId = (req) => {
+  return (
+    req.headers['x-session-id'] ||
+    req.headers['x-user-id'] ||
+    req.body.userId ||
+    req.body.sessionId ||
+    req.query.userId ||
+    req.query.sessionId ||
+    'guest-user-default'
+  );
+};
+
 /**
  * @desc    Create a new booking with date validation and server-side price recalculation
  * @route   POST /api/bookings
@@ -10,6 +23,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler.js';
  */
 export const createBooking = asyncHandler(async (req, res, next) => {
   const { listingId, checkIn, checkOut, guests } = req.body;
+  const userId = getUserId(req);
 
   // 1. Validate required fields
   if (!listingId || !checkIn || !checkOut) {
@@ -78,12 +92,13 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 
   // 6. Save booking to MongoDB
   const booking = await Booking.create({
+    userId,
     listingId: listing._id,
     checkIn: checkInDate,
     checkOut: checkOutDate,
     guests: guestData,
     totalPrice,
-    status: 'pending',
+    status: 'confirmed',
     createdAt: new Date(),
   });
 
@@ -96,6 +111,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     confirmationCode,
     booking: {
       _id: booking._id,
+      userId: booking.userId,
       listingId: booking.listingId,
       listingTitle: listing.title,
       checkIn: checkInDate.toISOString().split('T')[0],
@@ -118,16 +134,24 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * @desc    Fetch bookings list
+ * @desc    Fetch bookings list (filtered by user or listing)
  * @route   GET /api/bookings
  * @access  Public
  */
 export const getBookings = asyncHandler(async (req, res, next) => {
-  const { listingId } = req.query;
-  const filter = listingId ? { listingId } : {};
+  const { listingId, all } = req.query;
+  const userId = getUserId(req);
+  const filter = {};
+
+  if (listingId) {
+    filter.listingId = listingId;
+  } else if (!all && userId && userId !== 'all') {
+    // By default, return bookings for current user/session or default guests
+    filter.userId = { $in: [userId, 'guest-user-default'] };
+  }
 
   const bookings = await Booking.find(filter)
-    .populate('listingId', 'title location pricePerNight images')
+    .populate('listingId', 'title location pricePerNight images category host')
     .sort({ createdAt: -1 });
 
   return res.status(200).json({
@@ -137,7 +161,36 @@ export const getBookings = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * @desc    Cancel a booking
+ * @route   DELETE /api/bookings/:id
+ * @access  Public
+ */
+export const cancelBooking = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new AppError(`Invalid booking ID format: "${id}"`, 400);
+  }
+
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    throw new AppError(`Booking not found with ID: ${id}`, 404);
+  }
+
+  booking.status = 'cancelled';
+  await booking.save();
+
+  return res.status(200).json({
+    success: true,
+    message: 'Reservation cancelled successfully',
+    data: booking,
+  });
+});
+
 export default {
   createBooking,
   getBookings,
+  cancelBooking,
 };
+

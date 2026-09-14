@@ -78,6 +78,11 @@ const listingSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    category: {
+      type: String,
+      default: 'Beachfront',
+      index: true,
+    },
     coordinates: {
       lat: { type: Number, required: true },
       lng: { type: Number, required: true },
