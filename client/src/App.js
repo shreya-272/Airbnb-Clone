@@ -32,6 +32,9 @@ export default function App() {
     error: null,
   });
 
+  // Listing data fetched from MongoDB via /api/listings/:id
+  const [listing, setListing] = useState(null);
+
   // User interaction states
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [checkIn, setCheckIn] = useState('2026-10-12');
@@ -60,14 +63,23 @@ export default function App() {
 
   useEffect(() => {
     fetchHealth();
+    // Fetch the seeded listing dynamically from backend
+    fetch('/api/listings/6aa7d647bda80dd066fe3c61')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data) {
+          setListing(json.data);
+        }
+      })
+      .catch((err) => console.error('[App] Listing fetch error:', err));
   }, []);
 
   // Pricing calculations
-  const nightlyRate = 385;
+  const nightlyRate = listing?.pricePerNight || 385;
   const nights = 5;
   const basePrice = nightlyRate * nights;
-  const cleaningFee = 150;
-  const serviceFee = Math.round(basePrice * 0.142);
+  const cleaningFee = listing?.cleaningFee || 150;
+  const serviceFee = listing?.serviceFee || Math.round(basePrice * 0.142);
   const taxes = Math.round((basePrice + cleaningFee) * 0.085);
   const totalPrice = basePrice + cleaningFee + serviceFee + taxes;
 
