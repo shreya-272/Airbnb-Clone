@@ -28,6 +28,7 @@ import { useListing } from './api/listingApi.js';
 import { checkFavoriteStatus, addFavorite, removeFavorite } from './api/favoriteApi.js';
 import { submitBooking } from './api/bookingApi.js';
 import ListingSkeleton from './components/ListingSkeleton.js';
+import ReviewsSection from './components/ReviewsSection.js';
 
 // Seeded listing ObjectId in MongoDB
 const LISTING_ID = '6aa7d647bda80dd066fe3c61';
@@ -740,6 +741,9 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Extended Reviews Section from MongoDB */}
+            <ReviewsSection listingId={listing._id} onReviewAdded={() => refetch()} />
           </>
         ) : null}
       </main>

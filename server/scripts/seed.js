@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Listing from '../models/Listing.js';
+import Review from '../models/Review.js';
+import { recalculateListingRating } from '../controllers/reviewController.js';
 
 // Resolve current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -64,6 +66,57 @@ const sampleListing = {
   },
 };
 
+const sampleReviews = [
+  {
+    author: {
+      name: 'Sophia Martinez',
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80',
+      location: 'San Francisco, California',
+    },
+    rating: 5,
+    categoryRatings: { cleanliness: 5, accuracy: 5, checkIn: 5, communication: 5, location: 5, value: 5 },
+    comment:
+      'Our family stayed at Villa Paradiso for our 10th anniversary, and it completely exceeded our wildest expectations. The cliffside views at sunrise and sunset are breathtaking. Isabella was an incredible host who organized our private boat charter.',
+    createdAt: new Date('2026-08-20'),
+  },
+  {
+    author: {
+      name: 'Alexander Wright',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+      location: 'London, United Kingdom',
+    },
+    rating: 5,
+    categoryRatings: { cleanliness: 5, accuracy: 5, checkIn: 5, communication: 5, location: 5, value: 5 },
+    comment:
+      'The infinity pool looking out over the Mediterranean is the finest feature of any villa we have ever rented. Clean, incredibly spacious, high-speed Wi-Fi worked flawlessly for our remote work days.',
+    createdAt: new Date('2026-08-05'),
+  },
+  {
+    author: {
+      name: 'Elena Rostova',
+      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80',
+      location: 'Zurich, Switzerland',
+    },
+    rating: 5,
+    categoryRatings: { cleanliness: 5, accuracy: 5, checkIn: 5, communication: 5, location: 5, value: 5 },
+    comment:
+      'A true piece of paradise on the Amalfi Coast. Spotlessly clean, beautifully appointed bedrooms, and delicious local pastries waiting for us upon arrival. 10/10 recommendation!',
+    createdAt: new Date('2026-07-28'),
+  },
+  {
+    author: {
+      name: 'Marcus Chen',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80',
+      location: 'Toronto, Canada',
+    },
+    rating: 5,
+    categoryRatings: { cleanliness: 5, accuracy: 5, checkIn: 5, communication: 5, location: 5, value: 4 },
+    comment:
+      'Spectacular villa with first-class amenities. The outdoor pizza oven and dining terrace hosted our favourite dinner of our entire Italy trip. Isabella’s responsiveness was remarkable.',
+    createdAt: new Date('2026-07-14'),
+  },
+];
+
 const seedDatabase = async () => {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/Airbnb';
 
@@ -74,31 +127,35 @@ const seedDatabase = async () => {
 
     // Upsert the sample listing by title
     const existing = await Listing.findOne({ title: sampleListing.title });
-    let result;
+    let listing;
 
     if (existing) {
       console.log(`Listing already exists with ID: ${existing._id}. Updating document...`);
-      result = await Listing.findByIdAndUpdate(existing._id, sampleListing, { new: true });
+      listing = await Listing.findByIdAndUpdate(existing._id, sampleListing, { new: true });
     } else {
       console.log('Inserting new sample listing...');
-      result = await Listing.create(sampleListing);
+      listing = await Listing.create(sampleListing);
     }
 
+    // Seed sample reviews
+    await Review.deleteMany({ listingId: listing._id });
+    const reviewsToInsert = sampleReviews.map((r) => ({
+      ...r,
+      listingId: listing._id,
+    }));
+    await Review.insertMany(reviewsToInsert);
+    console.log(`Inserted ${reviewsToInsert.length} authentic guest reviews.`);
+
+    // Recalculate listing ratings
+    const updatedStats = await recalculateListingRating(listing._id);
+
     console.log('\n=============================================');
-    console.log('SAMPLE LISTING SEEDED SUCCESSFULLY!');
+    console.log('DATABASE SEEDED SUCCESSFULLY WITH REVIEWS!');
     console.log('=============================================');
-    console.log(`Database:   ${mongoose.connection.name}`);
-    console.log(`Collection: ${Listing.collection.name}`);
-    console.log(`Document ID: ${result._id}`);
-    console.log(`Title:      ${result.title}`);
-    console.log(`City/Country: ${result.location.city}, ${result.location.country}`);
-    console.log(`Price/Night: $${result.pricePerNight}`);
-    console.log(`Images:     ${result.images.length} photos`);
-    console.log(`Amenities:  ${result.amenities.length} items`);
+    console.log(`Listing:     ${listing.title}`);
+    console.log(`Document ID: ${listing._id}`);
+    console.log(`Rating:      ${updatedStats.rating} (${updatedStats.reviewCount} reviews)`);
     console.log('=============================================');
-    console.log('You can now open MongoDB Compass, connect to:');
-    console.log('mongodb://localhost:27017');
-    console.log(`and inspect the "${mongoose.connection.name}" database -> "${Listing.collection.name}" collection.\n`);
 
     await mongoose.disconnect();
     console.log('Disconnected from MongoDB.');
