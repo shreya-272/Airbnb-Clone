@@ -27,8 +27,9 @@ app.use(
   })
 );
 
-// Middleware: JSON Body Parser
-app.use(express.json());
+// Middleware: JSON & Form Body Parser (10MB limit to support device photo uploads)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging middleware (dev)
 app.use((req, res, next) => {

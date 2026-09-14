@@ -173,3 +173,43 @@ export const loginDemo = asyncHandler(async (req, res) => {
     message: 'Logged in as Demo Traveler (Eleanor Vance).',
   });
 });
+
+/**
+ * @desc    Update user profile data (name, avatar, bio, phone)
+ * @route   PUT /api/auth/profile
+ * @access  Private
+ */
+export const updateProfile = asyncHandler(async (req, res, next) => {
+  const { name, avatar, bio, phone } = req.body;
+
+  const updateFields = {};
+  if (name !== undefined && name.trim()) updateFields.name = name.trim();
+  if (avatar !== undefined && avatar) updateFields.avatar = avatar;
+  if (bio !== undefined) updateFields.bio = bio;
+  if (phone !== undefined) updateFields.phone = phone;
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: updateFields },
+    { new: true, runValidators: true }
+  ).select('-password');
+
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      role: user.role,
+      phone: user.phone,
+      bio: user.bio,
+      createdAt: user.createdAt,
+    },
+    message: 'Profile updated successfully in MongoDB!',
+  });
+});

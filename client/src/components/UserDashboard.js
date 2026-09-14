@@ -17,15 +17,64 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
-  LogIn
+  LogIn,
+  Edit3,
+  Save,
+  X,
+  Phone,
+  FileText
 } from 'lucide-react';
 import { fetchUserBookings, cancelBooking } from '../api/bookingApi.js';
 import { fetchUserFavorites, removeFavorite } from '../api/favoriteApi.js';
 import { useAuth } from '../context/AuthContext.js';
+import AvatarPicker from './AvatarPicker.js';
 
 export default function UserDashboard({ onSelectListing, onExplore }) {
-  const { user, isAuthenticated, openAuthModal, logout } = useAuth();
+  const { user, isAuthenticated, openAuthModal, logout, updateUserProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'wishlist' | 'reviews' | 'settings'
+
+  // Profile edit modal state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState(null);
+
+  const handleOpenEditProfile = () => {
+    setEditName(user?.name || '');
+    setEditPhone(user?.phone || '');
+    setEditBio(user?.bio || '');
+    setEditAvatar(user?.avatar || '');
+    setProfileSaveSuccess(false);
+    setProfileSaveError(null);
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setIsSavingProfile(true);
+    setProfileSaveError(null);
+    setProfileSaveSuccess(false);
+    try {
+      await updateUserProfile({
+        name: editName,
+        phone: editPhone,
+        bio: editBio,
+        avatar: editAvatar,
+      });
+      setProfileSaveSuccess(true);
+      setTimeout(() => {
+        setIsEditingProfile(false);
+      }, 900);
+    } catch (err) {
+      setProfileSaveError(err.message || 'Failed to update profile in database');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Bookings state
   const [bookings, setBookings] = useState([]);
@@ -167,6 +216,14 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                       className="text-slate-400 hover:text-rose-400 underline transition cursor-pointer"
                     >
                       Log out
+                    </button>
+                    <span>·</span>
+                    <button
+                      onClick={handleOpenEditProfile}
+                      className="inline-flex items-center space-x-1.5 bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-white/20 transition cursor-pointer active:scale-95"
+                    >
+                      <Edit3 className="w-3 h-3 text-brand" />
+                      <span>Edit Profile & Photo</span>
                     </button>
                   </>
                 )}
@@ -630,6 +687,123 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
                 Connected
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile & Photo Modal */}
+      {isEditingProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div
+            className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-airbnb-border overflow-hidden flex flex-col max-h-[90vh] animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-airbnb-borderLight flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Edit3 className="w-5 h-5 text-brand" />
+                <h3 className="font-bold text-base text-airbnb-black">Edit Profile & Photo</h3>
+              </div>
+              <button
+                onClick={() => setIsEditingProfile(false)}
+                className="p-1.5 rounded-full hover:bg-airbnb-bgSubtle text-airbnb-gray hover:text-airbnb-black transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              {profileSaveSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span className="font-semibold">Profile & photo updated successfully in MongoDB!</span>
+                </div>
+              )}
+
+              {profileSaveError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <span className="leading-snug">{profileSaveError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveProfile} className="space-y-4">
+                {/* Avatar Picker with Device Upload & Suggestions */}
+                <AvatarPicker
+                  value={editAvatar}
+                  onChange={setEditAvatar}
+                  label="Update Profile Picture (From Device or Suggestions)"
+                />
+
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-airbnb-gray absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-airbnb-gray absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="+1 (555) 000-0000"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
+                    About / Travel Bio
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Tell other travelers about your adventures..."
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    className="w-full p-3 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
+                  ></textarea>
+                </div>
+
+                {/* Save button */}
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="w-full bg-brand hover:bg-brand-hover text-white font-semibold py-3 rounded-xl text-sm shadow-md transition flex items-center justify-center space-x-2 disabled:opacity-60 cursor-pointer active:scale-[0.99]"
+                >
+                  {isSavingProfile ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Saving to MongoDB...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Changes to MongoDB</span>
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import {
   loginUser,
   loginDemoUser,
   fetchCurrentUser,
+  updateProfileApi,
   getStoredToken,
   getStoredUser,
   clearStoredAuth,
@@ -108,6 +109,21 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateUserProfile = async (profileData) => {
+    setIsLoading(true);
+    setAuthError(null);
+    try {
+      const updatedUser = await updateProfileApi(profileData);
+      setUser(updatedUser);
+      return updatedUser;
+    } catch (err) {
+      setAuthError(err.message || 'Failed to update profile');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     clearStoredAuth();
     setUser(null);
@@ -126,6 +142,7 @@ export function AuthProvider({ children }) {
     login,
     loginDemo,
     logout,
+    updateUserProfile,
     isAuthModalOpen,
     authModalTab,
     setAuthModalTab,

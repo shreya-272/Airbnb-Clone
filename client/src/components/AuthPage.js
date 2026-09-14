@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import AvatarPicker from './AvatarPicker.js';
 
 export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
   const { login, signup, loginDemo, authError, setAuthError, isLoading } = useAuth();
@@ -23,6 +24,9 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [bio, setBio] = useState('');
+  const [avatar, setAvatar] = useState(
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -60,6 +64,7 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
           email: email.trim(),
           password,
           bio: bio.trim(),
+          avatar: avatar || undefined,
         });
         setSuccessMessage('Account created! Welcome to Airbnb.');
       } else {
@@ -180,22 +185,30 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {activeTab === 'signup' && (
-              <div>
-                <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-airbnb-gray absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Sophia Laurent"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
-                  />
+              <>
+                <AvatarPicker
+                  value={avatar}
+                  onChange={setAvatar}
+                  label="Profile Picture (Device Upload or Suggestions)"
+                />
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-airbnb-gray absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sophia Laurent"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             <div>

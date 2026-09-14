@@ -65,8 +65,14 @@ function AppContent() {
   const { user, isAuthenticated, openAuthModal, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  // Navigation & View state: 'explore' (all resorts) | 'listing' (detail view) | 'dashboard' (user dashboard) | 'auth' (login/signup page)
-  const [currentView, setCurrentView] = useState('explore');
+  // At first open only login and signup page if unauthenticated; otherwise open user dashboard
+  const [currentView, setCurrentView] = useState(() => {
+    try {
+      return localStorage.getItem('airbnb_auth_token') ? 'dashboard' : 'auth';
+    } catch {
+      return 'auth';
+    }
+  });
   const [authPageTab, setAuthPageTab] = useState('login');
   const [selectedListingId, setSelectedListingId] = useState(DEFAULT_LISTING_ID);
 
@@ -480,6 +486,7 @@ function AppContent() {
                     <button
                       onClick={() => {
                         logout();
+                        setCurrentView('auth');
                         setIsUserMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-rose-50 text-rose-600 flex items-center space-x-2 cursor-pointer"
@@ -521,7 +528,7 @@ function AppContent() {
       ) : currentView === 'auth' ? (
         <AuthPage
           defaultTab={authPageTab}
-          onComplete={() => setCurrentView('explore')}
+          onComplete={() => setCurrentView('dashboard')}
           onBack={() => setCurrentView('explore')}
         />
       ) : (
@@ -1247,7 +1254,7 @@ function AppContent() {
       )}
 
       {/* Global Auth Modal for Login and Signup */}
-      <AuthModal />
+      <AuthModal onAuthSuccess={() => setCurrentView('dashboard')} />
     </div>
   );
 }

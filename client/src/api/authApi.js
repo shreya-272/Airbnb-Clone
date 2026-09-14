@@ -121,3 +121,32 @@ export const fetchCurrentUser = async (token) => {
   }
   return null;
 };
+
+/**
+ * Update user profile in MongoDB (name, avatar, bio, phone)
+ */
+export const updateProfileApi = async (profileData) => {
+  const authToken = getStoredToken();
+  if (!authToken) throw new Error('You must be logged in to update your profile.');
+
+  const response = await fetch(`${API_BASE_URL}/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify(profileData),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to update profile in database.');
+  }
+
+  if (data.user) {
+    setStoredAuth(authToken, data.user);
+    return data.user;
+  }
+  return data;
+};
+

@@ -14,8 +14,9 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import AvatarPicker from './AvatarPicker.js';
 
-export default function AuthModal() {
+export default function AuthModal({ onAuthSuccess }) {
   const {
     isAuthModalOpen,
     closeAuthModal,
@@ -34,6 +35,9 @@ export default function AuthModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [bio, setBio] = useState('');
+  const [avatar, setAvatar] = useState(
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
 
@@ -72,6 +76,7 @@ export default function AuthModal() {
           email: email.trim(),
           password,
           bio: bio.trim(),
+          avatar: avatar || undefined,
         });
       } else {
         await login({
@@ -79,6 +84,7 @@ export default function AuthModal() {
           password,
         });
       }
+      onAuthSuccess?.();
     } catch {
       // Error is caught and stored in authError by context
     }
@@ -89,6 +95,7 @@ export default function AuthModal() {
     setAuthError(null);
     try {
       await loginDemo();
+      onAuthSuccess?.();
     } catch {
       // Handled in context
     }
@@ -173,24 +180,32 @@ export default function AuthModal() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full Name field for Sign Up */}
+            {/* Full Name field and Avatar Picker for Sign Up */}
             {authModalTab === 'signup' && (
-              <div>
-                <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-airbnb-gray absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Sophia Laurent"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
-                  />
+              <>
+                <AvatarPicker
+                  value={avatar}
+                  onChange={setAvatar}
+                  label="Profile Picture (Device Upload or Suggestions)"
+                />
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-airbnb-gray absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sophia Laurent"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-airbnb-border rounded-xl focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black outline-none transition"
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             {/* Email Address */}
