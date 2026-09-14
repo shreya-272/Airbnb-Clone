@@ -30,14 +30,21 @@ export const submitBooking = async ({ listingId, checkIn, checkOut, guests }) =>
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || `Booking failed with status ${response.status}`);
+      const message = data.message || data.error || `Booking failed with status ${response.status}`;
+      const error = new Error(message);
+      error.statusCode = response.status;
+      throw error;
     }
 
     return data;
   } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+      error.message = 'Network connection failed: Unable to reach reservation server. Please verify backend server is running.';
+    }
     console.error('[bookingApi] Error submitting booking:', error);
     throw error;
   }
@@ -46,3 +53,4 @@ export const submitBooking = async ({ listingId, checkIn, checkOut, guests }) =>
 export default {
   submitBooking,
 };
+

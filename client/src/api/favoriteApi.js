@@ -18,6 +18,40 @@ export const getSessionId = () => {
 };
 
 /**
+ * Fetch all favorites for the current user/session from MongoDB.
+ * 
+ * @returns {Promise<Array>} Array of favorite items
+ */
+export const fetchUserFavorites = async () => {
+  const sessionId = getSessionId();
+
+  try {
+    const res = await fetch('/api/favorites', {
+      headers: {
+        'x-session-id': sessionId,
+      },
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      const message = errJson.message || errJson.error || `HTTP error ${res.status}`;
+      const err = new Error(message);
+      err.statusCode = res.status;
+      throw err;
+    }
+
+    const data = await res.json();
+    return data.data || [];
+  } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+    }
+    console.error('[favoriteApi] Error fetching user favorites from MongoDB:', error);
+    throw error;
+  }
+};
+
+/**
  * Check if a listing is favorited from MongoDB, falling back to localStorage.
  * 
  * @param {string} listingId - The MongoDB listing ID
@@ -35,7 +69,11 @@ export const checkFavoriteStatus = async (listingId) => {
     });
 
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+      const errJson = await res.json().catch(() => ({}));
+      const message = errJson.message || errJson.error || `HTTP ${res.status}`;
+      const err = new Error(message);
+      err.statusCode = res.status;
+      throw err;
     }
 
     const data = await res.json();
@@ -72,14 +110,20 @@ export const addFavorite = async (listingId) => {
 
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.error || 'Failed to save favorite');
+      const message = errJson.message || errJson.error || 'Failed to save favorite';
+      const err = new Error(message);
+      err.statusCode = res.status;
+      throw err;
     }
 
     updateLocalCache(listingId, true);
     return true;
   } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+    }
     console.error('[favoriteApi] Error adding favorite to MongoDB:', error);
-    // Persist locally even if network fails
+    // Persist locally as fallback
     updateLocalCache(listingId, true);
     throw error;
   }
@@ -104,12 +148,18 @@ export const removeFavorite = async (listingId) => {
 
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.error || 'Failed to remove favorite');
+      const message = errJson.message || errJson.error || 'Failed to remove favorite';
+      const err = new Error(message);
+      err.statusCode = res.status;
+      throw err;
     }
 
     updateLocalCache(listingId, false);
     return false;
   } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+    }
     console.error('[favoriteApi] Error removing favorite from MongoDB:', error);
     updateLocalCache(listingId, false);
     throw error;
@@ -146,7 +196,9 @@ const updateLocalCache = (listingId, isFav) => {
 
 export default {
   getSessionId,
+  fetchUserFavorites,
   checkFavoriteStatus,
   addFavorite,
   removeFavorite,
 };
+

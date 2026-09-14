@@ -13,12 +13,21 @@ export const fetchListingReviews = async (listingId) => {
 
   try {
     const response = await fetch(`/api/listings/${listingId}/reviews`);
+    const result = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
+      const message = result.message || result.error || `HTTP error ${response.status}`;
+      const err = new Error(message);
+      err.statusCode = response.status;
+      throw err;
     }
-    const result = await response.json();
+
     return result;
   } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+      error.message = 'Network connection failed: Unable to fetch reviews from server.';
+    }
     console.error(`[reviewApi] Error fetching reviews for ${listingId}:`, error);
     throw error;
   }
@@ -43,14 +52,21 @@ export const submitReview = async (listingId, reviewData) => {
       body: JSON.stringify(reviewData),
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(result.error || `Failed to submit review (HTTP ${response.status})`);
+      const message = result.message || result.error || `Failed to submit review (HTTP ${response.status})`;
+      const err = new Error(message);
+      err.statusCode = response.status;
+      throw err;
     }
 
     return result;
   } catch (error) {
+    if (!error.statusCode) {
+      error.isNetworkError = true;
+      error.message = 'Network connection failed: Unable to submit review to server.';
+    }
     console.error('[reviewApi] Error submitting review:', error);
     throw error;
   }
@@ -60,3 +76,4 @@ export default {
   fetchListingReviews,
   submitReview,
 };
+

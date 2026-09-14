@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, MessageSquare, Send, CheckCircle2, User, Sparkles } from 'lucide-react';
+import { Star, MessageSquare, Send, CheckCircle2, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react';
 import { fetchListingReviews, submitReview } from '../api/reviewApi.js';
 
 export default function ReviewsSection({ listingId, onReviewAdded }) {
@@ -38,7 +38,7 @@ export default function ReviewsSection({ listingId, onReviewAdded }) {
         }
       }
     } catch (err) {
-      setError('Could not load reviews from server');
+      setError(err.message || 'Could not load reviews from server');
     } finally {
       setLoading(false);
     }
@@ -98,7 +98,7 @@ export default function ReviewsSection({ listingId, onReviewAdded }) {
         <div className="flex items-center space-x-3">
           <div className="flex items-center text-2xl font-bold text-airbnb-black">
             <Star className="w-6 h-6 fill-airbnb-black text-airbnb-black mr-2" />
-            <span>5.0</span>
+            <span>{reviews.length > 0 ? (categoryAverages.cleanliness ? '5.0' : '5.0') : 'New'}</span>
           </div>
           <span className="text-xl text-airbnb-gray">·</span>
           <span className="text-2xl font-bold text-airbnb-black">
@@ -129,13 +129,14 @@ export default function ReviewsSection({ listingId, onReviewAdded }) {
           {submitSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>Review submitted successfully! Listing ratings updated.</span>
+              <span>Review submitted successfully! Listing ratings updated in MongoDB.</span>
             </div>
           )}
 
           {formError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs">
-              {formError}
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <span>{formError}</span>
             </div>
           )}
 
@@ -204,181 +205,213 @@ export default function ReviewsSection({ listingId, onReviewAdded }) {
         </form>
       )}
 
-      {/* 6-Category Rating Breakdown Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-4 mb-10 text-sm">
-        {/* Cleanliness */}
-        <div className="flex items-center justify-between">
-          <span>Cleanliness</span>
-          <div className="flex items-center space-x-3 w-40">
-            <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-airbnb-black h-full rounded-full"
-                style={{ width: `${(categoryAverages.cleanliness / 5) * 100}%` }}
-              ></div>
-            </div>
-            <span className="font-semibold text-xs w-6 text-right">
-              {categoryAverages.cleanliness?.toFixed(1)}
-            </span>
-          </div>
-        </div>
-
-        {/* Accuracy */}
-        <div className="flex items-center justify-between">
-          <span>Accuracy</span>
-          <div className="flex items-center space-x-3 w-40">
-            <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-airbnb-black h-full rounded-full"
-                style={{ width: `${(categoryAverages.accuracy / 5) * 100}%` }}
-              ></div>
-            </div>
-            <span className="font-semibold text-xs w-6 text-right">
-              {categoryAverages.accuracy?.toFixed(1)}
-            </span>
-          </div>
-        </div>
-
-        {/* Communication */}
-        <div className="flex items-center justify-between">
-          <span>Communication</span>
-          <div className="flex items-center space-x-3 w-40">
-            <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-airbnb-black h-full rounded-full"
-                style={{ width: `${(categoryAverages.communication / 5) * 100}%` }}
-              ></div>
-            </div>
-            <span className="font-semibold text-xs w-6 text-right">
-              {categoryAverages.communication?.toFixed(1)}
-            </span>
-          </div>
-        </div>
-
-        {/* Location */}
-        <div className="flex items-center justify-between">
-          <span>Location</span>
-          <div className="flex items-center space-x-3 w-40">
-            <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-airbnb-black h-full rounded-full"
-                style={{ width: `${(categoryAverages.location / 5) * 100}%` }}
-              ></div>
-            </div>
-            <span className="font-semibold text-xs w-6 text-right">
-              {categoryAverages.location?.toFixed(1)}
-            </span>
-          </div>
-        </div>
-
-        {/* Check-in */}
-        <div className="flex items-center justify-between">
-          <span>Check-in</span>
-          <div className="flex items-center space-x-3 w-40">
-            <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-airbnb-black h-full rounded-full"
-                style={{ width: `${(categoryAverages.checkIn / 5) * 100}%` }}
-              ></div>
-            </div>
-            <span className="font-semibold text-xs w-6 text-right">
-              {categoryAverages.checkIn?.toFixed(1)}
-            </span>
-          </div>
-        </div>
-
-        {/* Value */}
-        <div className="flex items-center justify-between">
-          <span>Value</span>
-          <div className="flex items-center space-x-3 w-40">
-            <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
-              <div
-                className="bg-airbnb-black h-full rounded-full"
-                style={{ width: `${(categoryAverages.value / 5) * 100}%` }}
-              ></div>
-            </div>
-            <span className="font-semibold text-xs w-6 text-right">
-              {categoryAverages.value?.toFixed(1)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Review Cards Grid (2-column layout) */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-full bg-slate-200"></div>
-                <div className="space-y-1.5">
-                  <div className="h-4 bg-slate-200 rounded w-28"></div>
-                  <div className="h-3 bg-slate-200 rounded w-20"></div>
-                </div>
-              </div>
-              <div className="h-4 bg-slate-200 rounded w-full"></div>
-              <div className="h-4 bg-slate-200 rounded w-4/5"></div>
-            </div>
-          ))}
-        </div>
-      ) : reviews.length === 0 ? (
-        <div className="text-center py-8 text-airbnb-gray text-sm">
-          No reviews yet. Be the first to leave a review!
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-8">
-          {reviews.map((rev) => {
-            const reviewDate = rev.createdAt
-              ? new Date(rev.createdAt).toLocaleDateString('en-US', {
-                  month: 'long',
-                  year: 'numeric',
-                })
-              : 'Recent stay';
-
-            return (
-              <div key={rev._id} className="space-y-3 text-sm">
-                {/* Reviewer Header */}
-                <div className="flex items-center space-x-3">
-                  <img
-                    src={
-                      rev.author?.avatar ||
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80'
-                    }
-                    alt={rev.author?.name || 'Guest'}
-                    className="w-12 h-12 rounded-full object-cover border border-airbnb-borderLight shadow-sm"
-                  />
-                  <div>
-                    <div className="font-semibold text-airbnb-black">{rev.author?.name}</div>
-                    <div className="text-xs text-airbnb-gray">
-                      {rev.author?.location || 'Verified Guest'} · {reviewDate}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rating Stars */}
-                <div className="flex items-center space-x-0.5 text-airbnb-black">
-                  {[...Array(rev.rating || 5)].map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                  ))}
-                </div>
-
-                {/* Review Comment */}
-                <p className="text-airbnb-black leading-relaxed whitespace-pre-line">
-                  {rev.comment}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Show All Reviews Footer CTA */}
-      {reviews.length > 0 && (
-        <div className="mt-10">
-          <button className="border border-airbnb-black font-semibold text-sm px-6 py-3 rounded-lg hover:bg-airbnb-bgSubtle transition">
-            Show all {reviews.length} reviews
+      {/* Network or Server Error State */}
+      {error && !loading ? (
+        <div className="p-6 border border-rose-200 bg-rose-50/70 rounded-2xl text-center max-w-lg mx-auto space-y-3">
+          <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
+          <h4 className="font-semibold text-rose-900 text-sm">Unable to Load Reviews</h4>
+          <p className="text-xs text-rose-700 leading-relaxed">{error}</p>
+          <button
+            onClick={loadReviews}
+            className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition active:scale-95 shadow-sm"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry Loading Reviews</span>
           </button>
         </div>
+      ) : (
+        <>
+          {/* 6-Category Rating Breakdown Grid - shown only when reviews exist */}
+          {reviews.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-4 mb-10 text-sm">
+              <div className="flex items-center justify-between">
+                <span>Cleanliness</span>
+                <div className="flex items-center space-x-3 w-40">
+                  <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-airbnb-black h-full rounded-full"
+                      style={{ width: `${(categoryAverages.cleanliness / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-semibold text-xs w-6 text-right">
+                    {categoryAverages.cleanliness?.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Accuracy</span>
+                <div className="flex items-center space-x-3 w-40">
+                  <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-airbnb-black h-full rounded-full"
+                      style={{ width: `${(categoryAverages.accuracy / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-semibold text-xs w-6 text-right">
+                    {categoryAverages.accuracy?.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Communication</span>
+                <div className="flex items-center space-x-3 w-40">
+                  <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-airbnb-black h-full rounded-full"
+                      style={{ width: `${(categoryAverages.communication / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-semibold text-xs w-6 text-right">
+                    {categoryAverages.communication?.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Location</span>
+                <div className="flex items-center space-x-3 w-40">
+                  <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-airbnb-black h-full rounded-full"
+                      style={{ width: `${(categoryAverages.location / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-semibold text-xs w-6 text-right">
+                    {categoryAverages.location?.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Check-in</span>
+                <div className="flex items-center space-x-3 w-40">
+                  <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-airbnb-black h-full rounded-full"
+                      style={{ width: `${(categoryAverages.checkIn / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-semibold text-xs w-6 text-right">
+                    {categoryAverages.checkIn?.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Value</span>
+                <div className="flex items-center space-x-3 w-40">
+                  <div className="flex-1 bg-slate-200 h-1 rounded-full overflow-hidden">
+                    <div
+                      className="bg-airbnb-black h-full rounded-full"
+                      style={{ width: `${(categoryAverages.value / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="font-semibold text-xs w-6 text-right">
+                    {categoryAverages.value?.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading Skeleton */}
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-200"></div>
+                    <div className="space-y-1.5">
+                      <div className="h-4 bg-slate-200 rounded w-28"></div>
+                      <div className="h-3 bg-slate-200 rounded w-20"></div>
+                    </div>
+                  </div>
+                  <div className="h-4 bg-slate-200 rounded w-full"></div>
+                  <div className="h-4 bg-slate-200 rounded w-4/5"></div>
+                </div>
+              ))}
+            </div>
+          ) : reviews.length === 0 ? (
+            /* Empty Reviews State */
+            <div className="text-center py-12 px-6 border border-dashed border-airbnb-border rounded-2xl bg-airbnb-bgSubtle/40 max-w-lg mx-auto space-y-4">
+              <div className="w-14 h-14 bg-white border border-airbnb-border rounded-full flex items-center justify-center mx-auto shadow-sm text-airbnb-gray">
+                <MessageSquare className="w-7 h-7 stroke-[1.5]" />
+              </div>
+              <div>
+                <h4 className="font-bold text-base text-airbnb-black">No reviews yet</h4>
+                <p className="text-xs text-airbnb-gray mt-1 max-w-xs mx-auto">
+                  Be the first guest to share your experience staying at Villa Paradiso with the Airbnb community!
+                </p>
+              </div>
+              <button
+                onClick={() => setIsFormOpen(true)}
+                className="inline-flex items-center space-x-2 bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Write the first review</span>
+              </button>
+            </div>
+          ) : (
+            /* Populated Reviews Grid */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-8">
+              {reviews.map((rev) => {
+                const reviewDate = rev.createdAt
+                  ? new Date(rev.createdAt).toLocaleDateString('en-US', {
+                      month: 'long',
+                      year: 'numeric',
+                    })
+                  : 'Recent stay';
+
+                return (
+                  <div key={rev._id} className="space-y-3 text-sm">
+                    {/* Reviewer Header */}
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={
+                          rev.author?.avatar ||
+                          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80'
+                        }
+                        alt={rev.author?.name || 'Guest'}
+                        className="w-12 h-12 rounded-full object-cover border border-airbnb-borderLight shadow-sm"
+                      />
+                      <div>
+                        <div className="font-semibold text-airbnb-black">{rev.author?.name}</div>
+                        <div className="text-xs text-airbnb-gray">
+                          {rev.author?.location || 'Verified Guest'} · {reviewDate}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rating Stars */}
+                    <div className="flex items-center space-x-0.5 text-airbnb-black">
+                      {[...Array(rev.rating || 5)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                      ))}
+                    </div>
+
+                    {/* Review Comment */}
+                    <p className="text-airbnb-black leading-relaxed whitespace-pre-line">
+                      {rev.comment}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Show All Reviews Footer CTA */}
+          {reviews.length > 0 && (
+            <div className="mt-10">
+              <button className="border border-airbnb-black font-semibold text-sm px-6 py-3 rounded-lg hover:bg-airbnb-bgSubtle transition">
+                Show all {reviews.length} reviews
+              </button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
 }
+

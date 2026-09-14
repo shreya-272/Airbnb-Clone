@@ -6,6 +6,7 @@ import healthRoutes from './routes/health.js';
 import listingRoutes from '../routes/listingRoutes.js';
 import favoriteRoutes from '../routes/favoriteRoutes.js';
 import bookingRoutes from '../routes/bookingRoutes.js';
+import { errorHandler, AppError } from '../middleware/errorHandler.js';
 
 // Load environment variables
 dotenv.config();
@@ -49,16 +50,13 @@ app.get('/', (req, res) => {
   });
 });
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found', path: req.originalUrl });
+// 404 Handler - Unmatched routes pass to global error handler
+app.use((req, res, next) => {
+  next(new AppError(`Endpoint not found: ${req.method} ${req.originalUrl}`, 404));
 });
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error('[Server Error]', err);
-  res.status(500).json({ error: 'Internal Server Error', message: err.message });
-});
+// Global Express Error Handling Middleware
+app.use(errorHandler);
 
 // Start Server
 const server = app.listen(PORT, () => {

@@ -22,10 +22,12 @@ import {
   Minus,
   AlertTriangle,
   Briefcase,
-  Home
+  Home,
+  X,
+  Trash2
 } from 'lucide-react';
 import { useListing } from './api/listingApi.js';
-import { checkFavoriteStatus, addFavorite, removeFavorite } from './api/favoriteApi.js';
+import { checkFavoriteStatus, addFavorite, removeFavorite, fetchUserFavorites } from './api/favoriteApi.js';
 import { submitBooking } from './api/bookingApi.js';
 import ListingSkeleton from './components/ListingSkeleton.js';
 import ReviewsSection from './components/ReviewsSection.js';
@@ -48,8 +50,8 @@ const getAmenityIcon = (name) => {
 };
 
 export default function App() {
-  // Use custom hook to fetch listing from MongoDB
-  const { data: listing, loading, error, refetch } = useListing(LISTING_ID);
+  // Use custom hook to fetch listing from MongoDB with explicit error categories
+  const { data: listing, loading, error, isNetworkError, isNotFound, refetch } = useListing(LISTING_ID);
 
   // Backend Health state for top system status banner
   const [health, setHealth] = useState({
@@ -61,6 +63,15 @@ export default function App() {
   // User interaction states
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isSavingFavorite, setIsSavingFavorite] = useState(false);
+  const [favoriteError, setFavoriteError] = useState(null);
+
+  // Wishlist modal & list states
+  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [wishlistError, setWishlistError] = useState(null);
+
+  // Dates & Guests
   const [checkIn, setCheckIn] = useState('2026-10-12');
   const [checkOut, setCheckOut] = useState('2026-10-17');
   const [guests, setGuests] = useState({ adults: 2, children: 0, infants: 0 });
@@ -96,6 +107,39 @@ export default function App() {
     }
   }, [listing?._id]);
 
+  // Load user favorites from MongoDB for Wishlist drawer
+  const loadWishlist = async () => {
+    setWishlistLoading(true);
+    setWishlistError(null);
+    try {
+      const items = await fetchUserFavorites();
+      setWishlistItems(items);
+    } catch (err) {
+      setWishlistError(err.message || 'Could not load favorites from MongoDB');
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
+
+  const handleOpenWishlist = () => {
+    setIsWishlistOpen(true);
+    loadWishlist();
+  };
+
+  const handleRemoveWishlistItem = async (targetListingId) => {
+    try {
+      await removeFavorite(targetListingId);
+      setWishlistItems((prev) =>
+        prev.filter((item) => (item.listingId?._id || item.listingId) !== targetListingId)
+      );
+      if (listing?._id === targetListingId) {
+        setIsWishlisted(false);
+      }
+    } catch (err) {
+      setFavoriteError(`Failed to remove favorite: ${err.message}`);
+    }
+  };
+
   // Handle favorite toggle synchronized with MongoDB & localStorage
   const handleToggleFavorite = async () => {
     if (!listing?._id || isSavingFavorite) return;
@@ -103,6 +147,7 @@ export default function App() {
     const nextStatus = !isWishlisted;
     setIsWishlisted(nextStatus);
     setIsSavingFavorite(true);
+    setFavoriteError(null);
 
     try {
       if (nextStatus) {
@@ -112,8 +157,13 @@ export default function App() {
       }
     } catch (err) {
       console.error('[App] Failed to sync favorite with MongoDB:', err);
-      // Rollback on network failure
+      // Rollback on network or server failure
       setIsWishlisted(!nextStatus);
+      setFavoriteError(
+        err.isNetworkError
+          ? 'Network failure: Unable to reach MongoDB. Favorite changes saved locally only.'
+          : err.message || 'Could not update favorite in database.'
+      );
     } finally {
       setIsSavingFavorite(false);
     }
@@ -122,6 +172,19 @@ export default function App() {
   // Handle booking submission to MongoDB
   const handleReserve = async () => {
     if (!listing?._id || bookingStatus === 'submitting') return;
+
+    // Client-side date validations
+    if (!checkIn || !checkOut) {
+      setBookingStatus('error');
+      setBookingErrorMessage('Please select both check-in and checkout dates.');
+      return;
+    }
+
+    if (new Date(checkOut) <= new Date(checkIn)) {
+      setBookingStatus('error');
+      setBookingErrorMessage('Checkout date must be after check-in date.');
+      return;
+    }
 
     setBookingStatus('submitting');
     setBookingErrorMessage(null);
@@ -163,6 +226,7 @@ export default function App() {
         'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
         'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80',
       ];
+
 
   return (
     <div className="min-h-screen bg-white text-airbnb-black font-sans">
@@ -268,7 +332,15 @@ export default function App() {
           </div>
 
           {/* Right Navigation */}
-          <div className="flex items-center space-x-4 text-sm font-medium">
+          <div className="flex items-center space-x-3 text-sm font-medium">
+            <button
+              onClick={handleOpenWishlist}
+              className="flex items-center space-x-1.5 hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition cursor-pointer text-airbnb-black"
+              title="View your saved favorites from MongoDB"
+            >
+              <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-brand text-brand' : 'text-airbnb-black'}`} />
+              <span className="hidden sm:inline">Wishlist</span>
+            </button>
             <span className="hidden md:inline cursor-pointer hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition">
               Airbnb your home
             </span>
@@ -296,17 +368,76 @@ export default function App() {
         {/* Loading State: Skeleton */}
         {loading ? (
           <ListingSkeleton />
+        ) : isNotFound ? (
+          /* 404 Listing Not Found State */
+          <div className="my-16 text-center max-w-lg mx-auto p-8 border border-amber-200 bg-amber-50/70 rounded-2xl shadow-sm space-y-4">
+            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-700">
+              <Home className="w-8 h-8 stroke-[1.5]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-amber-900">Listing Not Found (404)</h2>
+              <p className="text-xs text-amber-700 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                The requested listing ID <code className="font-mono bg-amber-100/80 px-1.5 py-0.5 rounded">{LISTING_ID}</code> could not be found in MongoDB. It may have been unpublished or removed.
+              </p>
+            </div>
+            <div className="flex justify-center space-x-3 pt-2">
+              <button
+                onClick={refetch}
+                className="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow transition active:scale-95"
+              >
+                Retry Loading
+              </button>
+            </div>
+          </div>
+        ) : isNetworkError ? (
+          /* Network Connection Failure State */
+          <div className="my-16 text-center max-w-lg mx-auto p-8 border border-rose-200 bg-rose-50/70 rounded-2xl shadow-sm space-y-4">
+            <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto text-rose-600">
+              <Wifi className="w-8 h-8 stroke-[1.5]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-rose-900">Backend Server Unreachable</h2>
+              <p className="text-xs text-rose-700 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                Could not establish a connection to the Express API at <code className="font-mono bg-rose-100 px-1.5 py-0.5 rounded">http://localhost:5000</code>. Please check your backend dev server.
+              </p>
+            </div>
+            <div className="flex justify-center space-x-3 pt-2">
+              <button
+                onClick={refetch}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow transition active:scale-95"
+              >
+                Retry Connection
+              </button>
+            </div>
+          </div>
         ) : error ? (
-          /* Error State */
-          <div className="my-16 text-center max-w-lg mx-auto p-8 border border-rose-200 bg-rose-50 rounded-2xl shadow-sm">
-            <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-rose-900 mb-2">Failed to Load Listing</h2>
-            <p className="text-sm text-rose-700 mb-6">{error}</p>
+          /* Generic Error State */
+          <div className="my-16 text-center max-w-lg mx-auto p-8 border border-rose-200 bg-rose-50 rounded-2xl shadow-sm space-y-4">
+            <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" />
+            <div>
+              <h2 className="text-xl font-bold text-rose-900">Failed to Load Listing</h2>
+              <p className="text-xs text-rose-700 mt-1 max-w-sm mx-auto">{error}</p>
+            </div>
             <button
               onClick={refetch}
-              className="bg-brand text-white font-semibold px-6 py-2.5 rounded-xl shadow hover:bg-brand-hover transition"
+              className="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow transition active:scale-95"
             >
               Try Again
+            </button>
+          </div>
+        ) : !listing ? (
+          /* Empty Listing State */
+          <div className="my-16 text-center max-w-lg mx-auto p-8 border border-dashed border-slate-300 bg-slate-50 rounded-2xl shadow-sm space-y-4">
+            <Home className="w-12 h-12 text-slate-400 mx-auto" />
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">No Listing Available</h2>
+              <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto">No listing document was returned from the database.</p>
+            </div>
+            <button
+              onClick={refetch}
+              className="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow transition active:scale-95"
+            >
+              Reload Listing
             </button>
           </div>
         ) : listing ? (
@@ -342,7 +473,7 @@ export default function App() {
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
                   <button className="flex items-center space-x-2 text-airbnb-black font-medium hover:bg-airbnb-bgSubtle px-3 py-1.5 rounded-lg transition">
                     <Share2 className="w-4 h-4" />
                     <span className="underline">Share</span>
@@ -361,6 +492,13 @@ export default function App() {
                     <span className="underline">
                       {isSavingFavorite ? 'Saving...' : isWishlisted ? 'Saved' : 'Save'}
                     </span>
+                  </button>
+                  <button
+                    onClick={handleOpenWishlist}
+                    className="text-xs font-semibold text-airbnb-gray hover:text-airbnb-black underline hidden sm:inline"
+                    title="View all saved wishlist items from MongoDB"
+                  >
+                    (View all)
                   </button>
                 </div>
               </div>
@@ -658,21 +796,44 @@ export default function App() {
 
                   {/* Booking Error Banner */}
                   {bookingStatus === 'error' && bookingErrorMessage && (
-                    <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start space-x-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-semibold">Unable to submit reservation</div>
-                        <div>{bookingErrorMessage}</div>
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between space-x-2">
+                      <div className="flex items-start space-x-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold">Unable to submit reservation</div>
+                          <div>{bookingErrorMessage}</div>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => {
+                          setBookingStatus('idle');
+                          setBookingErrorMessage(null);
+                        }}
+                        className="text-rose-500 hover:text-rose-800 p-0.5 transition"
+                        title="Dismiss"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
 
                   {/* Booking Success Confirmation Banner */}
                   {bookingStatus === 'success' && bookingConfirmation && (
                     <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs rounded-xl space-y-1.5 shadow-sm">
-                      <div className="flex items-center space-x-1.5 font-bold text-emerald-800 text-sm">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Reservation request submitted</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5 font-bold text-emerald-800 text-sm">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Reservation request submitted</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setBookingStatus('idle');
+                            setBookingConfirmation(null);
+                          }}
+                          className="text-[11px] font-semibold underline text-emerald-700 hover:text-emerald-900"
+                        >
+                          Reset
+                        </button>
                       </div>
                       <div className="text-emerald-700">
                         Code: <span className="font-mono font-semibold">{bookingConfirmation.confirmationCode}</span> · Status: <span className="font-semibold capitalize">{bookingConfirmation.booking?.status || 'pending'}</span>
@@ -747,6 +908,151 @@ export default function App() {
           </>
         ) : null}
       </main>
+
+      {/* Floating Favorite Error Toast */}
+      {favoriteError && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border border-slate-700 animate-slide-up max-w-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span className="leading-snug">{favoriteError}</span>
+          <button
+            onClick={() => setFavoriteError(null)}
+            className="text-slate-400 hover:text-white ml-2 flex-shrink-0"
+            title="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Wishlist / Favorites Modal */}
+      {isWishlistOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-airbnb-border overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-airbnb-borderLight flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Heart className="w-5 h-5 fill-brand text-brand" />
+                <h3 className="font-bold text-base text-airbnb-black">Saved Wishlist</h3>
+                <span className="text-[11px] font-semibold bg-airbnb-bgSubtle px-2 py-0.5 rounded-full text-airbnb-gray">
+                  MongoDB Synced
+                </span>
+              </div>
+              <button
+                onClick={() => setIsWishlistOpen(false)}
+                className="p-1 rounded-full hover:bg-airbnb-bgSubtle text-airbnb-gray hover:text-airbnb-black transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {wishlistLoading ? (
+                <div className="space-y-4 animate-pulse">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="flex space-x-3 items-center">
+                      <div className="w-20 h-20 bg-slate-200 rounded-xl"></div>
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                        <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : wishlistError ? (
+                /* Favorites Error State */
+                <div className="p-6 text-center border border-rose-200 bg-rose-50/70 rounded-xl space-y-3">
+                  <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
+                  <h4 className="font-semibold text-rose-900 text-sm">Unable to Load Wishlist</h4>
+                  <p className="text-xs text-rose-700 leading-relaxed">{wishlistError}</p>
+                  <button
+                    onClick={loadWishlist}
+                    className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Retry</span>
+                  </button>
+                </div>
+              ) : wishlistItems.length === 0 ? (
+                /* Empty Favorites State */
+                <div className="text-center py-10 px-4 space-y-3">
+                  <div className="w-16 h-16 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center mx-auto text-brand">
+                    <Heart className="w-8 h-8" />
+                  </div>
+                  <h4 className="text-base font-bold text-airbnb-black">Your wishlist is empty</h4>
+                  <p className="text-xs text-airbnb-gray max-w-xs mx-auto leading-relaxed">
+                    As you browse listings, tap the heart icon on any home to save it to your personal wishlist and persist it in MongoDB.
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setIsWishlistOpen(false)}
+                      className="bg-airbnb-black hover:bg-slate-800 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition"
+                    >
+                      Browse Listings
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Populated Favorites List */
+                <div className="space-y-3">
+                  {wishlistItems.map((fav) => {
+                    const itemListing = fav.listingId || {};
+                    const itemListingId = itemListing._id || fav.listingId;
+                    const imgUrl =
+                      itemListing.images?.[0] ||
+                      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=400&q=80';
+
+                    return (
+                      <div
+                        key={fav._id}
+                        className="flex items-center space-x-4 p-3 border border-airbnb-border rounded-xl hover:bg-airbnb-bgSubtle/50 transition group"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={itemListing.title || 'Saved Listing'}
+                          className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h5 className="font-semibold text-sm text-airbnb-black truncate">
+                            {itemListing.title || 'Villa Paradiso'}
+                          </h5>
+                          <p className="text-xs text-airbnb-gray truncate mt-0.5">
+                            {itemListing.location?.city || 'Santorini'}, {itemListing.location?.country || 'Greece'}
+                          </p>
+                          <p className="text-xs font-bold text-airbnb-black mt-1">
+                            ${itemListing.pricePerNight || 385} <span className="font-normal text-airbnb-gray">/ night</span>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveWishlistItem(itemListingId)}
+                          className="p-2 text-airbnb-gray hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="Remove from favorites"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-airbnb-borderLight bg-airbnb-bgSubtle/40 flex items-center justify-between text-xs text-airbnb-gray">
+              <span>{wishlistItems.length} saved item{wishlistItems.length !== 1 ? 's' : ''}</span>
+              <button
+                onClick={loadWishlist}
+                disabled={wishlistLoading}
+                className="flex items-center space-x-1 hover:text-airbnb-black transition"
+              >
+                <RefreshCw className={`w-3 h-3 ${wishlistLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
