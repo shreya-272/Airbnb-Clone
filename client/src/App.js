@@ -25,6 +25,7 @@ import {
   Home
 } from 'lucide-react';
 import { useListing } from './api/listingApi.js';
+import { checkFavoriteStatus, addFavorite, removeFavorite } from './api/favoriteApi.js';
 import ListingSkeleton from './components/ListingSkeleton.js';
 
 // Seeded listing ObjectId in MongoDB
@@ -57,6 +58,7 @@ export default function App() {
 
   // User interaction states
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isSavingFavorite, setIsSavingFavorite] = useState(false);
   const [checkIn, setCheckIn] = useState('2026-10-12');
   const [checkOut, setCheckOut] = useState('2026-10-17');
   const [guests, setGuests] = useState({ adults: 2, children: 0, infants: 0 });
@@ -77,6 +79,38 @@ export default function App() {
   useEffect(() => {
     fetchHealth();
   }, []);
+
+  // Synchronize Favorite state from MongoDB when listing loads
+  useEffect(() => {
+    if (listing?._id) {
+      checkFavoriteStatus(listing._id)
+        .then((saved) => setIsWishlisted(saved))
+        .catch((err) => console.error('[App] Error checking favorite status:', err));
+    }
+  }, [listing?._id]);
+
+  // Handle favorite toggle synchronized with MongoDB & localStorage
+  const handleToggleFavorite = async () => {
+    if (!listing?._id || isSavingFavorite) return;
+
+    const nextStatus = !isWishlisted;
+    setIsWishlisted(nextStatus);
+    setIsSavingFavorite(true);
+
+    try {
+      if (nextStatus) {
+        await addFavorite(listing._id);
+      } else {
+        await removeFavorite(listing._id);
+      }
+    } catch (err) {
+      console.error('[App] Failed to sync favorite with MongoDB:', err);
+      // Rollback on network failure
+      setIsWishlisted(!nextStatus);
+    } finally {
+      setIsSavingFavorite(false);
+    }
+  };
 
   // Dynamic pricing calculations derived from MongoDB listing data
   const nightlyRate = listing?.pricePerNight || 385;
@@ -283,15 +317,19 @@ export default function App() {
                     <span className="underline">Share</span>
                   </button>
                   <button
-                    onClick={() => setIsWishlisted(!isWishlisted)}
-                    className="flex items-center space-x-2 text-airbnb-black font-medium hover:bg-airbnb-bgSubtle px-3 py-1.5 rounded-lg transition"
+                    onClick={handleToggleFavorite}
+                    disabled={isSavingFavorite}
+                    className="flex items-center space-x-2 text-airbnb-black font-medium hover:bg-airbnb-bgSubtle px-3 py-1.5 rounded-lg transition active:scale-95 disabled:opacity-75"
+                    title={isWishlisted ? 'Remove from saved' : 'Save to wishlist'}
                   >
                     <Heart
-                      className={`w-4 h-4 transition-transform active:scale-125 ${
+                      className={`w-4 h-4 transition-transform duration-200 active:scale-125 ${
                         isWishlisted ? 'fill-brand text-brand' : 'text-airbnb-black'
                       }`}
                     />
-                    <span className="underline">{isWishlisted ? 'Saved' : 'Save'}</span>
+                    <span className="underline">
+                      {isSavingFavorite ? 'Saving...' : isWishlisted ? 'Saved' : 'Save'}
+                    </span>
                   </button>
                 </div>
               </div>

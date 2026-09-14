@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import healthRoutes from './routes/health.js';
 import listingRoutes from '../routes/listingRoutes.js';
+import favoriteRoutes from '../routes/favoriteRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -35,6 +36,7 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api', healthRoutes);
 app.use('/api', listingRoutes);
+app.use('/api', favoriteRoutes);
 
 // Root fallback route
 app.get('/', (req, res) => {
