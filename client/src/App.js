@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useListing } from './api/listingApi.js';
 import { checkFavoriteStatus, addFavorite, removeFavorite } from './api/favoriteApi.js';
+import { submitBooking } from './api/bookingApi.js';
 import ListingSkeleton from './components/ListingSkeleton.js';
 
 // Seeded listing ObjectId in MongoDB
@@ -63,6 +64,11 @@ export default function App() {
   const [checkOut, setCheckOut] = useState('2026-10-17');
   const [guests, setGuests] = useState({ adults: 2, children: 0, infants: 0 });
   const [isGuestOpen, setIsGuestOpen] = useState(false);
+
+  // Booking states
+  const [bookingStatus, setBookingStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
+  const [bookingConfirmation, setBookingConfirmation] = useState(null);
+  const [bookingErrorMessage, setBookingErrorMessage] = useState(null);
 
   const fetchHealth = async () => {
     setHealth((prev) => ({ ...prev, loading: true, error: null }));
@@ -109,6 +115,30 @@ export default function App() {
       setIsWishlisted(!nextStatus);
     } finally {
       setIsSavingFavorite(false);
+    }
+  };
+
+  // Handle booking submission to MongoDB
+  const handleReserve = async () => {
+    if (!listing?._id || bookingStatus === 'submitting') return;
+
+    setBookingStatus('submitting');
+    setBookingErrorMessage(null);
+
+    try {
+      const result = await submitBooking({
+        listingId: listing._id,
+        checkIn,
+        checkOut,
+        guests,
+      });
+
+      setBookingConfirmation(result);
+      setBookingStatus('success');
+    } catch (err) {
+      console.error('[App] Booking submission error:', err);
+      setBookingStatus('error');
+      setBookingErrorMessage(err.message || 'Failed to submit reservation request');
     }
   };
 
@@ -625,10 +655,59 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Primary Gradient CTA */}
-                  <button className="w-full bg-gradient-to-r from-brand via-[#E31C5F] to-brand-dark hover:brightness-105 text-white font-semibold py-3.5 rounded-xl text-base shadow-md transition active:scale-[0.98]">
-                    Reserve
-                  </button>
+                  {/* Booking Error Banner */}
+                  {bookingStatus === 'error' && bookingErrorMessage && (
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-semibold">Unable to submit reservation</div>
+                        <div>{bookingErrorMessage}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Booking Success Confirmation Banner */}
+                  {bookingStatus === 'success' && bookingConfirmation && (
+                    <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs rounded-xl space-y-1.5 shadow-sm">
+                      <div className="flex items-center space-x-1.5 font-bold text-emerald-800 text-sm">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Reservation request submitted</span>
+                      </div>
+                      <div className="text-emerald-700">
+                        Code: <span className="font-mono font-semibold">{bookingConfirmation.confirmationCode}</span> · Status: <span className="font-semibold capitalize">{bookingConfirmation.booking?.status || 'pending'}</span>
+                      </div>
+                      <div className="text-emerald-600 text-[11px]">
+                        Saved in MongoDB ({bookingConfirmation.booking?.nights} nights · ${bookingConfirmation.booking?.pricing?.totalPrice?.toLocaleString()})
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reserve Action Button */}
+                  {bookingStatus === 'submitting' ? (
+                    <button
+                      disabled
+                      className="w-full bg-slate-700 text-white font-semibold py-3.5 rounded-xl text-base shadow flex items-center justify-center space-x-2 cursor-wait opacity-90"
+                    >
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Submitting request...</span>
+                    </button>
+                  ) : bookingStatus === 'success' ? (
+                    <button
+                      onClick={handleReserve}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-xl text-base shadow-md transition flex items-center justify-center space-x-2 active:scale-[0.98]"
+                      title="Reservation request submitted. Click to book again."
+                    >
+                      <CheckCircle2 className="w-5 h-5 text-white" />
+                      <span>Reservation request submitted</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReserve}
+                      className="w-full bg-gradient-to-r from-brand via-[#E31C5F] to-brand-dark hover:brightness-105 text-white font-semibold py-3.5 rounded-xl text-base shadow-md transition active:scale-[0.98]"
+                    >
+                      Reserve
+                    </button>
+                  )}
 
                   <div className="text-center text-xs text-airbnb-gray my-3">
                     You won't be charged yet
