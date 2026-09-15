@@ -14,7 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
-import AvatarPicker from './AvatarPicker.js';
+import { forgotPasswordApi } from '../api/authApi.js';
 
 export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
   const { login, signup, loginDemo, authError, setAuthError, isLoading } = useAuth();
@@ -24,12 +24,10 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [bio, setBio] = useState('');
-  const [avatar, setAvatar] = useState(
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'
-  );
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,9 +62,8 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
           email: email.trim(),
           password,
           bio: bio.trim(),
-          avatar: avatar || undefined,
         });
-        setSuccessMessage('Account created! Welcome to Airbnb.');
+        setSuccessMessage('Account created! Welcome to havenly.');
       } else {
         await login({
           email: email.trim(),
@@ -97,10 +94,22 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
     }
   };
 
+  const handleForgotPassword = async (event) => {
+    event.preventDefault();
+    setValidationError('');
+    setAuthError(null);
+    try {
+      await forgotPasswordApi(email.trim());
+      setSuccessMessage('If an account exists, password recovery instructions are ready.');
+    } catch (error) {
+      setValidationError(error.message);
+    }
+  };
+
   const displayError = validationError || authError;
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 py-12 bg-gradient-to-b from-white via-slate-50 to-slate-100">
+    <div className="auth-screen min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4 py-12 bg-gradient-to-b from-white via-slate-50 to-slate-100">
       <div className="w-full max-w-md">
         {/* Back navigation */}
         {onBack && (
@@ -114,7 +123,7 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
         )}
 
         {/* Card Container */}
-        <div className="bg-white rounded-3xl shadow-card border border-airbnb-border p-8 space-y-6">
+        <div className="auth-card bg-white rounded-3xl shadow-card border border-airbnb-border p-8 space-y-6">
           {/* Logo & Heading */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand/10 text-brand mb-2">
@@ -123,10 +132,10 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-airbnb-black tracking-tight">
-              {activeTab === 'login' ? 'Log in to your account' : 'Create an account'}
+              {isForgotPassword ? 'Reset your password' : activeTab === 'login' ? 'Log in to your account' : 'Create an account'}
             </h1>
             <p className="text-xs text-airbnb-gray">
-              Connect to MongoDB to save wishlists, manage bookings, and leave reviews.
+              Keep your favorite stays close, manage bookings, and share the places you love.
             </p>
           </div>
 
@@ -183,15 +192,16 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {isForgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <p className="text-sm leading-6 text-airbnb-gray">Enter your email and we’ll prepare a secure password reset link.</p>
+              <div className="relative"><Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-airbnb-gray" /><input type="email" required placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-airbnb-border py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-airbnb-black focus:ring-1 focus:ring-airbnb-black" /></div>
+              <button type="submit" className="w-full rounded-xl bg-brand py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-brand-hover">Send reset link</button>
+              <button type="button" onClick={() => setIsForgotPassword(false)} className="w-full text-xs font-bold text-airbnb-gray underline hover:text-airbnb-black">Back to login</button>
+            </form>
+          ) : <form onSubmit={handleSubmit} className="space-y-4">
             {activeTab === 'signup' && (
               <>
-                <AvatarPicker
-                  value={avatar}
-                  onChange={setAvatar}
-                  label="Profile Picture (Device Upload or Suggestions)"
-                />
-
                 <div>
                   <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
                     Full Name
@@ -276,7 +286,7 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
               {isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  <span>Connecting to MongoDB...</span>
+                  <span>Preparing your account...</span>
                 </>
               ) : (
                 <>
@@ -285,22 +295,24 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
                 </>
               )}
             </button>
-          </form>
+          </form>}
 
           {/* Divider */}
           <div className="relative flex items-center justify-center my-4">
             <div className="border-t border-airbnb-border w-full"></div>
-            <span className="bg-white px-3 text-xs text-airbnb-gray uppercase tracking-wider font-semibold">
+            <span className="auth-divider bg-white px-3 text-xs text-airbnb-gray uppercase tracking-wider font-semibold">
               or
             </span>
           </div>
+
+          {!isForgotPassword && activeTab === 'login' && <button type="button" onClick={() => setIsForgotPassword(true)} className="-mt-3 w-full text-right text-xs font-semibold text-brand hover:underline">Forgot password?</button>}
 
           {/* Quick Demo Traveler Button */}
           <button
             type="button"
             onClick={handleDemoClick}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2.5 p-3 rounded-xl border border-slate-300 hover:border-slate-800 hover:bg-slate-50 text-slate-800 font-semibold text-xs transition active:scale-[0.99] cursor-pointer shadow-xs"
+            className="auth-demo-button w-full flex items-center justify-center space-x-2.5 p-3 rounded-xl border border-slate-300 hover:border-slate-800 hover:bg-slate-50 text-slate-800 font-semibold text-xs transition active:scale-[0.99] cursor-pointer shadow-xs"
           >
             <Sparkles className="w-4 h-4 text-brand" />
             <span>Continue as Eleanor Vance (Demo Traveler)</span>
@@ -309,7 +321,7 @@ export default function AuthPage({ defaultTab = 'login', onComplete, onBack }) {
           {/* Security footnote */}
           <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-400 pt-2">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Passwords securely hashed with bcrypt & stored in MongoDB</span>
+            <span>Your information is protected and private</span>
           </div>
         </div>
       </div>

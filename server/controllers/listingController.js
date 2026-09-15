@@ -9,7 +9,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler.js';
  */
 export const getAllListings = asyncHandler(async (req, res, next) => {
   const { category, search } = req.query;
-  const filter = {};
+  const filter = { 'location.country': 'India' };
 
   if (category && category.toLowerCase() !== 'all') {
     filter.category = new RegExp(`^${category}$`, 'i');
@@ -48,7 +48,7 @@ export const getListingById = asyncHandler(async (req, res, next) => {
   }
 
   // 2. Fetch document by ID
-  const listing = await Listing.findById(id);
+  const listing = await Listing.findOne({ _id: id, 'location.country': 'India' });
 
   // 3. Handle Not Found case
   if (!listing) {

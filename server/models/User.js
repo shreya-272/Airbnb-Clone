@@ -40,6 +40,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'Passionate luxury travel enthusiast exploring exceptional stays worldwide.',
     },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationTokenHash: String,
+    emailVerificationExpires: Date,
+    passwordResetTokenHash: String,
+    passwordResetExpires: Date,
   },
   {
     timestamps: true,

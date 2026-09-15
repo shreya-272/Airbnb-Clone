@@ -4,6 +4,7 @@
   "private": true,
   "description": "Full-stack Airbnb Clone with React (JavaScript + Tailwind) and Express/MongoDB",
   "scripts": {
+    "dev": "npm run dev:client",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "seed": "npm --prefix server run seed",

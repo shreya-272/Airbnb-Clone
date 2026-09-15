@@ -14,7 +14,6 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
-import AvatarPicker from './AvatarPicker.js';
 
 export default function AuthModal({ onAuthSuccess }) {
   const {
@@ -35,9 +34,6 @@ export default function AuthModal({ onAuthSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [bio, setBio] = useState('');
-  const [avatar, setAvatar] = useState(
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'
-  );
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
 
@@ -76,7 +72,6 @@ export default function AuthModal({ onAuthSuccess }) {
           email: email.trim(),
           password,
           bio: bio.trim(),
-          avatar: avatar || undefined,
         });
       } else {
         await login({
@@ -106,7 +101,7 @@ export default function AuthModal({ onAuthSuccess }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
       <div
-        className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-airbnb-border overflow-hidden flex flex-col relative max-h-[90vh] animate-scale-up"
+        className="auth-card bg-white w-full max-w-md rounded-2xl shadow-2xl border border-airbnb-border overflow-hidden flex flex-col relative max-h-[90vh] animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Bar */}
@@ -129,7 +124,7 @@ export default function AuthModal({ onAuthSuccess }) {
           {/* Welcome Header */}
           <div>
             <h3 className="text-xl font-bold text-airbnb-black tracking-tight">
-              Welcome to Airbnb
+              Welcome to havenly
             </h3>
             <p className="text-xs text-airbnb-gray mt-1">
               Explore 12 world-class luxury resorts, manage your trips, and save wishlists.
@@ -183,12 +178,6 @@ export default function AuthModal({ onAuthSuccess }) {
             {/* Full Name field and Avatar Picker for Sign Up */}
             {authModalTab === 'signup' && (
               <>
-                <AvatarPicker
-                  value={avatar}
-                  onChange={setAvatar}
-                  label="Profile Picture (Device Upload or Suggestions)"
-                />
-
                 <div>
                   <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
                     Full Name
@@ -277,7 +266,7 @@ export default function AuthModal({ onAuthSuccess }) {
               {isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  <span>Connecting to MongoDB...</span>
+                  <span>Preparing your account...</span>
                 </>
               ) : (
                 <>
@@ -291,7 +280,7 @@ export default function AuthModal({ onAuthSuccess }) {
           {/* Divider */}
           <div className="relative flex items-center justify-center my-4">
             <div className="border-t border-airbnb-border w-full"></div>
-            <span className="bg-white px-3 text-xs text-airbnb-gray uppercase tracking-wider font-semibold">
+            <span className="auth-divider bg-white px-3 text-xs text-airbnb-gray uppercase tracking-wider font-semibold">
               or
             </span>
           </div>
@@ -301,7 +290,7 @@ export default function AuthModal({ onAuthSuccess }) {
             type="button"
             onClick={handleDemoClick}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2.5 p-3 rounded-xl border border-slate-300 hover:border-slate-800 hover:bg-slate-50 text-slate-800 font-semibold text-xs transition active:scale-[0.99] cursor-pointer shadow-xs"
+            className="auth-demo-button w-full flex items-center justify-center space-x-2.5 p-3 rounded-xl border border-slate-300 hover:border-slate-800 hover:bg-slate-50 text-slate-800 font-semibold text-xs transition active:scale-[0.99] cursor-pointer shadow-xs"
             title="Instant login with pre-configured traveler profile"
           >
             <Sparkles className="w-4 h-4 text-brand" />

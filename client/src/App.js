@@ -8,8 +8,6 @@ import {
   MapPin,
   CheckCircle2,
   RefreshCw,
-  Server,
-  Database,
   Wifi,
   Tv,
   Car,
@@ -32,6 +30,16 @@ import {
   LogIn,
   LogOut,
   UserCheck
+  ,Moon
+  ,Sun
+  ,ChevronLeft
+  ,ChevronRight
+  ,Maximize2
+  ,CalendarDays
+  ,Images
+  ,Globe2
+  ,HelpCircle
+  ,ArrowUpRight
 } from 'lucide-react';
 import { useListing } from './api/listingApi.js';
 import { checkFavoriteStatus, addFavorite, removeFavorite, fetchUserFavorites } from './api/favoriteApi.js';
@@ -43,6 +51,8 @@ import ResortCatalog from './components/ResortCatalog.js';
 import UserDashboard from './components/UserDashboard.js';
 import AuthModal from './components/AuthModal.js';
 import AuthPage from './components/AuthPage.js';
+import HostDashboard from './components/HostDashboard.js';
+import IndiaJourneys from './components/IndiaJourneys.js';
 
 // Seeded listing ObjectId in MongoDB (Villa Paradiso canonical ID)
 const DEFAULT_LISTING_ID = '6aa7d647bda80dd066fe3c61';
@@ -64,6 +74,22 @@ const getAmenityIcon = (name) => {
 function AppContent() {
   const { user, isAuthenticated, openAuthModal, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const savedTheme = localStorage.getItem('havenly_theme');
+      return savedTheme ? savedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleTheme = () => {
+    setIsDarkMode((current) => {
+      const nextTheme = !current;
+      localStorage.setItem('havenly_theme', nextTheme ? 'dark' : 'light');
+      return nextTheme;
+    });
+  };
 
   // At first open only login and signup page if unauthenticated; otherwise open user dashboard
   const [currentView, setCurrentView] = useState(() => {
@@ -76,15 +102,12 @@ function AppContent() {
   const [authPageTab, setAuthPageTab] = useState('login');
   const [selectedListingId, setSelectedListingId] = useState(DEFAULT_LISTING_ID);
 
+  useEffect(() => {
+    if (user?.role === 'host' || user?.role === 'admin') setCurrentView('host');
+  }, [user?.role]);
+
   // Use custom hook to fetch listing from MongoDB with explicit error categories
   const { data: listing, loading, error, isNetworkError, isNotFound, refetch } = useListing(selectedListingId);
-
-  // Backend Health state for top system status banner
-  const [health, setHealth] = useState({
-    loading: true,
-    data: null,
-    error: null,
-  });
 
   // User interaction states
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -107,6 +130,9 @@ function AppContent() {
   const [bookingStatus, setBookingStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
   const [bookingErrorMessage, setBookingErrorMessage] = useState(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   // Reset booking feedback when switching to a different resort
   useEffect(() => {
@@ -120,22 +146,6 @@ function AppContent() {
     setCurrentView('listing');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  const fetchHealth = async () => {
-    setHealth((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const response = await fetch('/api/health');
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      setHealth({ loading: false, data, error: null });
-    } catch (err) {
-      setHealth({ loading: false, data: null, error: err.message });
-    }
-  };
-
-  useEffect(() => {
-    fetchHealth();
-  }, []);
 
   // Synchronize Favorite state from MongoDB when listing loads
   useEffect(() => {
@@ -154,7 +164,7 @@ function AppContent() {
       const items = await fetchUserFavorites();
       setWishlistItems(items);
     } catch (err) {
-      setWishlistError(err.message || 'Could not load favorites from MongoDB');
+      setWishlistError(err.message || 'Could not load your wishlist');
     } finally {
       setWishlistLoading(false);
     }
@@ -200,7 +210,7 @@ function AppContent() {
       setIsWishlisted(!nextStatus);
       setFavoriteError(
         err.isNetworkError
-          ? 'Network failure: Unable to reach MongoDB. Favorite changes saved locally only.'
+          ? 'Network failure: your favorite was saved locally and will sync when you reconnect.'
           : err.message || 'Could not update favorite in database.'
       );
     } finally {
@@ -246,11 +256,11 @@ function AppContent() {
   };
 
   // Dynamic pricing calculations derived from MongoDB listing data
-  const nightlyRate = listing?.pricePerNight || 385;
-  const nights = 5;
+  const nightlyRate = listing?.pricePerNightINR || Math.round((listing?.pricePerNight || 385) * 83);
+  const nights = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000));
   const basePrice = nightlyRate * nights;
-  const cleaningFee = listing?.cleaningFee !== undefined ? listing.cleaningFee : 150;
-  const serviceFee = listing?.serviceFee !== undefined ? listing.serviceFee : Math.round(basePrice * 0.142);
+  const cleaningFee = listing?.cleaningFeeINR || Math.round((listing?.cleaningFee || 150) * 83);
+  const serviceFee = listing?.serviceFeeINR || Math.round((listing?.serviceFee || basePrice * 0.142) * (listing?.serviceFeeINR ? 1 : 83));
   const taxes = Math.round((basePrice + cleaningFee) * 0.085);
   const totalPrice = basePrice + cleaningFee + serviceFee + taxes;
   const totalGuests = guests.adults + guests.children;
@@ -259,98 +269,18 @@ function AppContent() {
   const listingImages = listing?.images?.length
     ? listing.images
     : [
-        'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
-        'https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80',
+        '/images/resorts/hotel-001.jpg',
+        '/images/resorts/hotel-002.jpg',
+        '/images/resorts/hotel-003.jpg',
+        '/images/resorts/hotel-004.jpg',
+        '/images/resorts/hotel-005.jpg',
       ];
 
 
   return (
-    <div className="min-h-screen bg-white text-airbnb-black font-sans">
-      {/* Top Architecture Status Banner */}
-      <aside aria-label="System status" className="bg-slate-900 text-white text-xs px-4 py-2.5 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center space-x-2">
-            <span className="flex h-2 w-2 relative">
-              {health.data?.status === 'ok' ? (
-                <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </>
-              ) : (
-                <span className="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-              )}
-            </span>
-            <span className="font-semibold tracking-wide uppercase text-slate-300">
-              MongoDB + Express Full-Stack Status:
-            </span>
-          </div>
-
-          <div className="flex items-center flex-wrap gap-4">
-            {/* Express Server */}
-            <div className="flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">
-              <Server className="w-3.5 h-3.5 text-sky-400" />
-              <span>Express:</span>
-              {health.loading ? (
-                <span className="text-slate-400">Connecting...</span>
-              ) : health.error ? (
-                <span className="text-rose-400 font-medium">Offline</span>
-              ) : (
-                <span className="text-emerald-400 font-medium">Port 5000 (Live)</span>
-              )}
-            </div>
-
-            {/* MongoDB Mongoose */}
-            <div className="flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>MongoDB:</span>
-              {health.loading ? (
-                <span className="text-slate-400">Verifying...</span>
-              ) : health.data?.database?.status === 'connected' ? (
-                <span className="text-emerald-400 font-medium">
-                  {health.data.database.name} (Active)
-                </span>
-              ) : (
-                <span className="text-rose-400 font-medium">Disconnected</span>
-              )}
-            </div>
-
-            {/* MongoDB User Auth Pill */}
-            <div className="flex items-center space-x-1.5 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 text-slate-300">
-              <span className={`h-2 w-2 rounded-full ${isAuthenticated ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
-              <span>User:</span>
-              {isAuthenticated ? (
-                <span className="text-emerald-400 font-semibold">{user?.name || 'Logged In'}</span>
-              ) : (
-                <button
-                  onClick={() => openAuthModal('login')}
-                  className="text-sky-300 hover:text-sky-200 underline font-semibold transition cursor-pointer"
-                >
-                  Guest (Click to Login)
-                </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                fetchHealth();
-                refetch();
-              }}
-              disabled={loading || health.loading}
-              className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs transition border border-slate-700 active:scale-95 disabled:opacity-50"
-              title="Refresh health and listing from DB"
-            >
-              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-              <span>Sync DB</span>
-            </button>
-          </div>
-        </div>
-      </aside>
-
+    <div className={`min-h-screen bg-white text-airbnb-black font-sans ${isDarkMode ? 'dark-theme' : ''}`}>
       {/* Global Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-airbnb-borderLight shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-airbnb-borderLight shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-20 flex items-center justify-between">
           {/* Logo */}
           <div
@@ -361,7 +291,7 @@ function AppContent() {
             <svg className="h-8 w-auto text-brand transition-transform group-hover:scale-105" viewBox="0 0 32 32" fill="currentColor">
               <path d="M16 1c2.008 0 3.463.963 4.751 3.269l.533 1.025c1.954 3.83 6.114 12.54 7.1 14.836l.145.353c.667 1.591.91 2.479.96 3.328l.011.389c0 4.002-3.136 7.2-7.1 7.2-2.146 0-4.095-.944-5.4-2.483-1.305 1.539-3.254 2.483-5.4 2.483-3.964 0-7.1-3.198-7.1-7.2 0-1.127.311-2.316.971-3.717l.145-.353c.986-2.296 5.146-11.006 7.1-14.836l.533-1.025C12.537 1.963 13.992 1 16 1zm0 2c-1.328 0-2.348.647-3.414 2.545l-.547 1.054c-1.94 3.8-6.096 12.5-7.067 14.763l-.135.332c-.596 1.264-.837 2.227-.837 3.106 0 2.871 2.228 5.2 5.1 5.2 1.776 0 3.447-.94 4.382-2.463l.518-.847.518.847c.935 1.523 2.606 2.463 4.382 2.463 2.872 0 5.1-2.329 5.1-5.2 0-.879-.241-1.842-.837-3.106l-.135-.332c-.971-2.263-5.127-10.963-7.067-14.763l-.547-1.054C18.348 3.647 17.328 3 16 3zm0 13c2.209 0 4 1.791 4 4 0 1.905-1.332 3.498-3.103 3.899l-.297.049-.6.052c-2.209 0-4-1.791-4-4 0-2.209 1.791-4 4-4zm0 2c-1.105 0-2 .895-2 2 0 .977.701 1.79 1.636 1.967l.178.024.186.009c1.105 0 2-.895 2-2 0-1.105-.895-2-2-2z" />
             </svg>
-            <span className="text-xl font-bold text-brand tracking-tight hidden sm:inline">airbnb</span>
+            <span className="text-xl font-extrabold text-brand tracking-tight hidden sm:inline">havenly</span>
           </div>
 
           {/* Primary View Switcher Navigation Pills */}
@@ -375,7 +305,18 @@ function AppContent() {
               }`}
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>Explore Resorts</span>
+              <span>Discover stays</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('journeys')}
+              className={`hidden md:flex items-center space-x-1.5 px-3.5 sm:px-4 py-2 rounded-full transition cursor-pointer ${
+                currentView === 'journeys'
+                  ? 'bg-white text-airbnb-black shadow-sm font-bold'
+                  : 'text-airbnb-gray hover:text-airbnb-black'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>India journeys</span>
             </button>
             <button
               onClick={() => setCurrentView('listing')}
@@ -386,7 +327,7 @@ function AppContent() {
               }`}
             >
               <Home className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Listing Details</span>
+              <span className="hidden sm:inline">Your stay</span>
               <span className="sm:hidden">Details</span>
             </button>
             <button
@@ -398,12 +339,31 @@ function AppContent() {
               }`}
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Dashboard</span>
+              <span>Trips</span>
             </button>
+
+            {isAuthenticated && (user?.role === 'host' || user?.role === 'admin') && (
+              <button
+                onClick={() => setCurrentView('host')}
+                className={`hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-full transition cursor-pointer text-xs font-semibold ${currentView === 'host' ? 'bg-brand/10 text-brand font-bold' : 'hover:bg-airbnb-bgSubtle text-airbnb-black'}`}
+              >
+                <Briefcase className="w-4 h-4 text-brand" />
+                <span>Host studio</span>
+              </button>
+            )}
           </nav>
 
           {/* Right Navigation */}
           <div className="flex items-center space-x-2 sm:space-x-3 text-sm font-medium">
+            <button
+              onClick={toggleTheme}
+              className="theme-toggle flex items-center justify-center w-9 h-9 rounded-full border border-airbnb-border hover:bg-airbnb-bgSubtle transition active:scale-95"
+              title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-pressed={isDarkMode}
+            >
+              {isDarkMode ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-airbnb-black" />}
+            </button>
             <button
               onClick={() => setCurrentView('dashboard')}
               className={`flex items-center space-x-1.5 px-3 py-2 rounded-full transition cursor-pointer text-xs font-semibold ${
@@ -420,7 +380,7 @@ function AppContent() {
             <button
               onClick={handleOpenWishlist}
               className="flex items-center space-x-1.5 hover:bg-airbnb-bgSubtle px-3 py-2 rounded-full transition cursor-pointer text-airbnb-black text-xs font-semibold"
-              title="View your saved favorites from MongoDB"
+              title="View your saved favorites"
             >
               <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-brand text-brand' : 'text-airbnb-black'}`} />
               <span className="hidden sm:inline">Wishlist</span>
@@ -520,6 +480,10 @@ function AppContent() {
       {/* Main View Router */}
       {currentView === 'explore' ? (
         <ResortCatalog onSelectListing={handleSelectListing} />
+      ) : currentView === 'journeys' ? (
+        <IndiaJourneys onSelectListing={handleSelectListing} />
+      ) : currentView === 'host' ? (
+        <HostDashboard onExplore={() => setCurrentView('explore')} />
       ) : currentView === 'dashboard' ? (
         <UserDashboard
           onSelectListing={handleSelectListing}
@@ -562,7 +526,7 @@ function AppContent() {
               <div>
                 <h2 className="text-xl font-bold text-amber-900">Listing Not Found (404)</h2>
                 <p className="text-xs text-amber-700 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                  The requested listing ID <code className="font-mono bg-amber-100/80 px-1.5 py-0.5 rounded">{selectedListingId}</code> could not be found in MongoDB. It may have been unpublished or removed.
+                  This stay may have been unpublished or removed. Try exploring another destination.
                 </p>
               </div>
               <div className="flex justify-center space-x-3 pt-2">
@@ -589,7 +553,7 @@ function AppContent() {
             <div>
               <h2 className="text-xl font-bold text-rose-900">Backend Server Unreachable</h2>
               <p className="text-xs text-rose-700 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                Could not establish a connection to the Express API at <code className="font-mono bg-rose-100 px-1.5 py-0.5 rounded">http://localhost:5000</code>. Please check your backend dev server.
+                We couldn't load this stay right now. Please check your connection and try again.
               </p>
             </div>
             <div className="flex justify-center space-x-3 pt-2">
@@ -687,7 +651,7 @@ function AppContent() {
                   <button
                     onClick={handleOpenWishlist}
                     className="text-xs font-semibold text-airbnb-gray hover:text-airbnb-black underline hidden sm:inline"
-                    title="View all saved wishlist items from MongoDB"
+                    title="View all saved wishlist items"
                   >
                     (View all)
                   </button>
@@ -699,7 +663,7 @@ function AppContent() {
             <section className="relative rounded-2xl overflow-hidden mb-10 shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-2 h-72 sm:h-[420px]">
                 {/* Main Hero Photo (images[0]) */}
-                <div className="md:col-span-2 relative overflow-hidden group cursor-pointer">
+                <div onClick={() => { setGalleryIndex(0); setIsGalleryOpen(true); }} className="md:col-span-2 relative overflow-hidden group cursor-pointer">
                   <img
                     src={listingImages[0]}
                     alt={listing.title}
@@ -708,7 +672,7 @@ function AppContent() {
                 </div>
 
                 {/* Quadrant Photo 1 (images[1]) */}
-                <div className="hidden md:block relative overflow-hidden group cursor-pointer">
+                <div onClick={() => { setGalleryIndex(1); setIsGalleryOpen(true); }} className="hidden md:block relative overflow-hidden group cursor-pointer">
                   <img
                     src={listingImages[1] || listingImages[0]}
                     alt="Property detail 1"
@@ -717,7 +681,7 @@ function AppContent() {
                 </div>
 
                 {/* Quadrant Photo 2 (images[2]) */}
-                <div className="hidden md:block relative overflow-hidden group cursor-pointer">
+                <div onClick={() => { setGalleryIndex(2); setIsGalleryOpen(true); }} className="hidden md:block relative overflow-hidden group cursor-pointer">
                   <img
                     src={listingImages[2] || listingImages[0]}
                     alt="Property detail 2"
@@ -726,7 +690,7 @@ function AppContent() {
                 </div>
 
                 {/* Quadrant Photo 3 (images[3]) */}
-                <div className="hidden md:block relative overflow-hidden group cursor-pointer">
+                <div onClick={() => { setGalleryIndex(3); setIsGalleryOpen(true); }} className="hidden md:block relative overflow-hidden group cursor-pointer">
                   <img
                     src={listingImages[3] || listingImages[0]}
                     alt="Property detail 3"
@@ -735,7 +699,7 @@ function AppContent() {
                 </div>
 
                 {/* Quadrant Photo 4 (images[4]) */}
-                <div className="hidden md:block relative overflow-hidden group cursor-pointer">
+                <div onClick={() => { setGalleryIndex(4); setIsGalleryOpen(true); }} className="hidden md:block relative overflow-hidden group cursor-pointer">
                   <img
                     src={listingImages[4] || listingImages[0]}
                     alt="Property detail 4"
@@ -744,7 +708,7 @@ function AppContent() {
                 </div>
               </div>
 
-              <button className="absolute bottom-5 right-5 bg-white text-airbnb-black font-semibold text-sm px-4 py-2 rounded-lg border border-airbnb-black shadow-md hover:bg-airbnb-bgSubtle transition flex items-center space-x-2">
+              <button onClick={() => { setGalleryIndex(0); setIsGalleryOpen(true); }} className="absolute bottom-5 right-5 bg-white text-airbnb-black font-semibold text-sm px-4 py-2 rounded-lg border border-airbnb-black shadow-md hover:bg-airbnb-bgSubtle transition flex items-center space-x-2">
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M3 1a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H3zm8 0a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-2zM3 9a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H3zm8 0a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-2z" />
                 </svg>
@@ -763,7 +727,7 @@ function AppContent() {
                       Entire home hosted by {listing.host?.name || 'Host'}
                     </h2>
                     <p className="text-airbnb-gray text-sm mt-1">
-                      {listing.guestCapacity} guests · {listing.bedrooms} bedrooms · {listing.beds} beds · {listing.bathrooms} baths
+                      {listing.guestCapacity} guests · {listing.bedrooms} bedrooms · {listing.beds} beds · {listing.bathrooms} baths · {listing.host?.responseRate || '98%'} response rate
                     </p>
                   </div>
                   <div className="relative">
@@ -786,7 +750,7 @@ function AppContent() {
                   <div>
                     <div className="font-semibold text-sm">Guest favourite</div>
                     <div className="text-xs text-airbnb-gray">
-                      One of the most loved homes on Airbnb based on ratings, reviews, and reliability.
+                      One of the most loved homes in our collection based on ratings, reviews, and reliability.
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -859,7 +823,7 @@ function AppContent() {
                   {/* Price & Rating Header */}
                   <div className="flex items-baseline justify-between mb-6">
                     <div>
-                      <span className="text-2xl font-bold text-airbnb-black">${nightlyRate}</span>
+                        <span className="text-2xl font-bold text-airbnb-black">₹{nightlyRate.toLocaleString('en-IN')}</span>
                       <span className="text-airbnb-gray text-sm"> / night</span>
                     </div>
                     <div className="flex items-center text-sm">
@@ -881,6 +845,7 @@ function AppContent() {
                         <input
                           type="date"
                           value={checkIn}
+                          min={new Date().toISOString().slice(0, 10)}
                           onChange={(e) => setCheckIn(e.target.value)}
                           className="w-full text-xs font-medium text-airbnb-black bg-transparent outline-none cursor-pointer"
                         />
@@ -892,6 +857,7 @@ function AppContent() {
                         <input
                           type="date"
                           value={checkOut}
+                          min={checkIn}
                           onChange={(e) => setCheckOut(e.target.value)}
                           className="w-full text-xs font-medium text-airbnb-black bg-transparent outline-none cursor-pointer"
                         />
@@ -985,6 +951,20 @@ function AppContent() {
                     </div>
                   </div>
 
+                  <div className="mb-4 rounded-xl border border-airbnb-border bg-airbnb-bgSubtle/40 p-3">
+                    <div className="mb-2 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-airbnb-black"><span className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 text-brand" />Quick availability</span><span className="font-normal normal-case text-airbnb-gray">Select check-in, then checkout</span></div>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {Array.from({ length: 14 }, (_, index) => {
+                        const day = new Date();
+                        day.setHours(12, 0, 0, 0);
+                        day.setDate(day.getDate() + index);
+                        const value = day.toISOString().slice(0, 10);
+                        const selected = value === checkIn || value === checkOut;
+                        return <button key={value} type="button" onClick={() => value > checkIn ? setCheckOut(value) : setCheckIn(value)} className={`rounded-lg px-1 py-2 text-center transition ${selected ? 'bg-brand text-white' : 'bg-white text-airbnb-black hover:bg-brand/10'}`}><span className="block text-[9px] text-current/60">{day.toLocaleDateString('en-US', { weekday: 'short' })}</span><span className="text-xs font-bold">{day.getDate()}</span></button>;
+                      })}
+                    </div>
+                  </div>
+
                   {/* Booking Error Banner */}
                   {bookingStatus === 'error' && bookingErrorMessage && (
                     <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between space-x-2">
@@ -1030,7 +1010,7 @@ function AppContent() {
                         Code: <span className="font-mono font-semibold">{bookingConfirmation.confirmationCode}</span> · Status: <span className="font-semibold capitalize">{bookingConfirmation.booking?.status || 'pending'}</span>
                       </div>
                       <div className="text-emerald-600 text-[11px]">
-                        Saved in MongoDB ({bookingConfirmation.booking?.nights} nights · ${bookingConfirmation.booking?.pricing?.totalPrice?.toLocaleString()})
+                        Saved to your trips ({bookingConfirmation.booking?.nights} nights · ₹{(bookingConfirmation.booking?.pricing?.totalPriceINR || 0).toLocaleString('en-IN')})
                       </div>
                     </div>
                   )}
@@ -1055,7 +1035,7 @@ function AppContent() {
                     </button>
                   ) : (
                     <button
-                      onClick={handleReserve}
+                      onClick={() => setIsCheckoutOpen(true)}
                       className="w-full bg-gradient-to-r from-brand via-[#E31C5F] to-brand-dark hover:brightness-105 text-white font-semibold py-3.5 rounded-xl text-base shadow-md transition active:scale-[0.98]"
                     >
                       Reserve
@@ -1069,25 +1049,25 @@ function AppContent() {
                   {/* Dynamic Cost Breakdown directly from MongoDB fields */}
                   <div className="space-y-3 pt-3 text-sm text-airbnb-black">
                     <div className="flex justify-between">
-                      <span className="underline">${nightlyRate} × {nights} nights</span>
-                      <span>${basePrice.toLocaleString()}</span>
+                      <span className="underline">₹{nightlyRate.toLocaleString('en-IN')} × {nights} nights</span>
+                      <span>₹{basePrice.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="underline">Cleaning fee</span>
-                      <span>${cleaningFee.toLocaleString()}</span>
+                      <span>₹{cleaningFee.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="underline">Airbnb service fee (14.2%)</span>
-                      <span>${serviceFee.toLocaleString()}</span>
+                      <span className="underline">Service fee (14.2%)</span>
+                      <span>₹{serviceFee.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="underline">Taxes (8.5%)</span>
-                      <span>${taxes.toLocaleString()}</span>
+                      <span>₹{taxes.toLocaleString('en-IN')}</span>
                     </div>
 
                     <div className="border-t border-airbnb-borderLight pt-4 flex justify-between font-bold text-base">
                       <span>Total before taxes & fees</span>
-                      <span>${totalPrice.toLocaleString()}</span>
+                      <span>₹{totalPrice.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -1099,6 +1079,34 @@ function AppContent() {
           </>
         ) : null}
         </main>
+      )}
+
+      {isGalleryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-label="Photo gallery">
+          <button onClick={() => setIsGalleryOpen(false)} className="absolute right-5 top-5 z-10 rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20" title="Close gallery"><X className="h-5 w-5" /></button>
+          <div className="flex w-full max-w-6xl flex-col items-center gap-5">
+            <div className="relative flex h-[58vh] w-full items-center justify-center sm:h-[70vh]">
+              <img src={listingImages[galleryIndex] || listingImages[0]} alt={`${listing.title} photo ${galleryIndex + 1}`} className="max-h-full max-w-full rounded-2xl object-contain shadow-floating" />
+              <button onClick={() => setGalleryIndex((index) => (index - 1 + listingImages.length) % listingImages.length)} className="absolute left-2 rounded-full bg-white/15 p-3 text-white transition hover:bg-white/25 sm:left-6" title="Previous photo"><ChevronLeft className="h-6 w-6" /></button>
+              <button onClick={() => setGalleryIndex((index) => (index + 1) % listingImages.length)} className="absolute right-2 rounded-full bg-white/15 p-3 text-white transition hover:bg-white/25 sm:right-6" title="Next photo"><ChevronRight className="h-6 w-6" /></button>
+            </div>
+            <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+              {listingImages.map((image, index) => <button key={image + index} onClick={() => setGalleryIndex(index)} className={`h-16 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition ${galleryIndex === index ? 'border-brand' : 'border-transparent opacity-60 hover:opacity-100'}`}><img src={image} alt={`Thumbnail ${index + 1}`} className="h-full w-full object-cover" /></button>)}
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-white/70"><Maximize2 className="h-3.5 w-3.5" />{galleryIndex + 1} / {listingImages.length} photos</div>
+          </div>
+        </div>
+      )}
+
+      {isCheckoutOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-floating">
+            <div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">Secure checkout</p><h2 className="mt-1 text-2xl font-bold text-airbnb-black">Review your stay</h2><p className="mt-1 text-xs text-airbnb-gray">No payment is captured in this demo checkout.</p></div><button onClick={() => setIsCheckoutOpen(false)} className="rounded-full p-2 text-airbnb-gray hover:bg-airbnb-bgSubtle"><X className="h-5 w-5" /></button></div>
+            <div className="mt-5 flex gap-3 rounded-2xl border border-airbnb-border bg-airbnb-bgSubtle/40 p-3"><img src={listingImages[0]} alt={listing.title} className="h-20 w-24 rounded-xl object-cover" /><div><h3 className="text-sm font-bold text-airbnb-black">{listing.title}</h3><p className="mt-1 text-xs text-airbnb-gray">{checkIn} to {checkOut} · {totalGuests} guests</p><p className="mt-2 text-xs font-bold text-airbnb-black">₹{nightlyRate.toLocaleString('en-IN')} × {nights} nights</p></div></div>
+            <div className="mt-5 space-y-3 border-t border-airbnb-borderLight pt-4 text-sm text-airbnb-black"><div className="flex justify-between"><span>Stay</span><span>₹{basePrice.toLocaleString('en-IN')}</span></div><div className="flex justify-between"><span>Cleaning and service</span><span>₹{(cleaningFee + serviceFee).toLocaleString('en-IN')}</span></div><div className="flex justify-between"><span>Taxes</span><span>₹{taxes.toLocaleString('en-IN')}</span></div><div className="flex justify-between border-t border-airbnb-borderLight pt-3 font-bold"><span>Total</span><span>₹{totalPrice.toLocaleString('en-IN')}</span></div></div>
+            <button onClick={() => { setIsCheckoutOpen(false); handleReserve(); }} className="mt-6 w-full rounded-xl bg-brand py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-brand-hover">Confirm reservation request</button>
+          </div>
+        </div>
       )}
 
       {/* Floating Favorite Error Toast */}
@@ -1126,7 +1134,7 @@ function AppContent() {
                 <Heart className="w-5 h-5 fill-brand text-brand" />
                 <h3 className="font-bold text-base text-airbnb-black">Saved Wishlist</h3>
                 <span className="text-[11px] font-semibold bg-airbnb-bgSubtle px-2 py-0.5 rounded-full text-airbnb-gray">
-                  MongoDB Synced
+                  Up to date
                 </span>
               </div>
               <button
@@ -1173,7 +1181,7 @@ function AppContent() {
                   </div>
                   <h4 className="text-base font-bold text-airbnb-black">Your wishlist is empty</h4>
                   <p className="text-xs text-airbnb-gray max-w-xs mx-auto leading-relaxed">
-                    As you browse listings, tap the heart icon on any home to save it to your personal wishlist and persist it in MongoDB.
+                    As you browse listings, tap the heart icon on any home to save it to your personal wishlist.
                   </p>
                   <div className="pt-2">
                     <button
@@ -1192,7 +1200,7 @@ function AppContent() {
                     const itemListingId = itemListing._id || fav.listingId;
                     const imgUrl =
                       itemListing.images?.[0] ||
-                      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=400&q=80';
+                      '/images/resorts/hotel-001.jpg';
 
                     return (
                       <div
@@ -1207,6 +1215,10 @@ function AppContent() {
                         <img
                           src={imgUrl}
                           alt={itemListing.title || 'Saved Listing'}
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = '/images/resorts/hotel-001.jpg';
+                          }}
                           className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
@@ -1214,10 +1226,10 @@ function AppContent() {
                             {itemListing.title || 'Villa Paradiso'}
                           </h5>
                           <p className="text-xs text-airbnb-gray truncate mt-0.5">
-                            {itemListing.location?.city || 'Santorini'}, {itemListing.location?.country || 'Greece'}
+                            {itemListing.location?.city || 'Udaipur'}, India
                           </p>
                           <p className="text-xs font-bold text-airbnb-black mt-1">
-                            ${itemListing.pricePerNight || 385} <span className="font-normal text-airbnb-gray">/ night</span>
+                            ₹{(itemListing.pricePerNightINR || itemListing.pricePerNight * 83 || 385 * 83).toLocaleString('en-IN')} <span className="font-normal text-airbnb-gray">/ night</span>
                           </p>
                         </div>
                         <button
@@ -1253,6 +1265,16 @@ function AppContent() {
         </div>
       )}
 
+      <footer className="border-t border-airbnb-borderLight bg-airbnb-bgSubtle/60 px-4 py-10 text-airbnb-gray sm:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-3"><div className="flex items-center gap-2 text-brand"><span className="text-lg font-extrabold">havenly</span></div><p className="max-w-xs text-xs leading-5">Thoughtful stays for the places, people, and moments worth remembering.</p></div>
+          <div><h3 className="text-xs font-bold uppercase tracking-[0.16em] text-airbnb-black">Explore</h3><div className="mt-4 space-y-3 text-xs"><button onClick={() => setCurrentView('explore')} className="block hover:text-brand">Discover stays</button><button onClick={() => setCurrentView('listing')} className="block hover:text-brand">Featured stay</button><button onClick={() => setCurrentView('dashboard')} className="block hover:text-brand">Your trips</button></div></div>
+          <div><h3 className="text-xs font-bold uppercase tracking-[0.16em] text-airbnb-black">Hosting</h3><div className="mt-4 space-y-3 text-xs"><button onClick={() => isAuthenticated ? setCurrentView('host') : openAuthModal('login')} className="flex items-center gap-1 hover:text-brand">Host your home <ArrowUpRight className="h-3 w-3" /></button><button onClick={() => setCurrentView('dashboard')} className="block hover:text-brand">Host resources</button><button onClick={() => openAuthModal('login')} className="block hover:text-brand">Sign in</button></div></div>
+          <div><h3 className="text-xs font-bold uppercase tracking-[0.16em] text-airbnb-black">Stay connected</h3><div className="mt-4 space-y-3 text-xs"><button className="flex items-center gap-2 hover:text-brand"><HelpCircle className="h-3.5 w-3.5" />Help center</button><button className="flex items-center gap-2 hover:text-brand"><Globe2 className="h-3.5 w-3.5" />English · INR ₹</button><p>Made for curious travelers.</p></div></div>
+        </div>
+        <div className="mx-auto mt-8 flex max-w-7xl flex-col gap-2 border-t border-airbnb-borderLight pt-5 text-[11px] sm:flex-row sm:items-center sm:justify-between"><span>© 2026 havenly. All rights reserved.</span><div className="flex gap-4"><button className="hover:text-brand">Privacy</button><button className="hover:text-brand">Terms</button><button className="hover:text-brand">Sitemap</button></div></div>
+      </footer>
+
       {/* Global Auth Modal for Login and Signup */}
       <AuthModal onAuthSuccess={() => setCurrentView('dashboard')} />
     </div>
@@ -1266,5 +1288,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
-

@@ -8,9 +8,9 @@ export default {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#FF385C',
-          hover: '#E00B41',
-          dark: '#D70466',
+          DEFAULT: '#E87458',
+          hover: '#C85D45',
+          dark: '#A84736',
         },
         airbnb: {
           black: '#222222',
@@ -23,12 +23,8 @@ export default {
       },
       fontFamily: {
         sans: [
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'Helvetica',
-          'Arial',
+          'DM Sans',
+          'Avenir Next',
           'sans-serif'
         ],
       },

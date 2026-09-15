@@ -2,6 +2,19 @@ const API_BASE_URL = '/api/auth';
 const TOKEN_KEY = 'airbnb_auth_token';
 const USER_KEY = 'airbnb_auth_user';
 
+const readResponse = async (response, fallbackMessage) => {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    throw new Error(response.ok ? fallbackMessage : `Server returned HTTP ${response.status} without a response body.`);
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(response.ok ? fallbackMessage : `Server returned an invalid response (HTTP ${response.status}).`);
+  }
+};
+
 /**
  * Storage helpers
  */
@@ -50,7 +63,7 @@ export const signupUser = async ({ name, email, password, bio, avatar }) => {
     body: JSON.stringify({ name, email, password, bio, avatar }),
   });
 
-  const data = await response.json();
+  const data = await readResponse(response, 'Registration failed because the server returned an empty response.');
   if (!response.ok) {
     throw new Error(data.message || 'Registration failed');
   }
@@ -69,7 +82,7 @@ export const loginUser = async ({ email, password }) => {
     body: JSON.stringify({ email, password }),
   });
 
-  const data = await response.json();
+  const data = await readResponse(response, 'Login failed because the server returned an empty response.');
   if (!response.ok) {
     throw new Error(data.message || 'Login failed');
   }
@@ -87,7 +100,7 @@ export const loginDemoUser = async () => {
     headers: { 'Content-Type': 'application/json' },
   });
 
-  const data = await response.json();
+  const data = await readResponse(response, 'Demo login failed because the server returned an empty response.');
   if (!response.ok) {
     throw new Error(data.message || 'Demo login failed');
   }
@@ -114,7 +127,7 @@ export const fetchCurrentUser = async (token) => {
     return null;
   }
 
-  const data = await response.json();
+  const data = await readResponse(response, 'Unable to load your account because the server returned an empty response.');
   if (data.user) {
     setStoredAuth(authToken, data.user);
     return data.user;
@@ -138,7 +151,7 @@ export const updateProfileApi = async (profileData) => {
     body: JSON.stringify(profileData),
   });
 
-  const data = await response.json();
+  const data = await readResponse(response, 'Profile update failed because the server returned an empty response.');
   if (!response.ok) {
     throw new Error(data.message || 'Failed to update profile in database.');
   }
@@ -147,6 +160,20 @@ export const updateProfileApi = async (profileData) => {
     setStoredAuth(authToken, data.user);
     return data.user;
   }
+  return data;
+};
+
+export const forgotPasswordApi = async (email) => {
+  const response = await fetch(`${API_BASE_URL}/forgot-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+  const data = await readResponse(response, 'Password recovery failed because the server returned an empty response.');
+  if (!response.ok) throw new Error(data.message || 'Unable to start password recovery');
+  return data;
+};
+
+export const changePasswordApi = async ({ currentPassword, newPassword }) => {
+  const response = await fetch(`${API_BASE_URL}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getStoredToken()}` }, body: JSON.stringify({ currentPassword, newPassword }) });
+  const data = await readResponse(response, 'Password change failed because the server returned an empty response.');
+  if (!response.ok) throw new Error(data.message || 'Unable to change password');
   return data;
 };
 

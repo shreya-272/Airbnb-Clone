@@ -129,7 +129,7 @@ export default function ReviewsSection({ listingId, onReviewAdded }) {
           {submitSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>Review submitted successfully! Listing ratings updated in MongoDB.</span>
+              <span>Review submitted successfully! Thanks for sharing your stay.</span>
             </div>
           )}
 

@@ -23,22 +23,29 @@ import {
   X,
   Phone,
   FileText
+  ,FolderPlus
+  ,Plus
+  ,MessageCircle
 } from 'lucide-react';
 import { fetchUserBookings, cancelBooking } from '../api/bookingApi.js';
 import { fetchUserFavorites, removeFavorite } from '../api/favoriteApi.js';
 import { useAuth } from '../context/AuthContext.js';
-import AvatarPicker from './AvatarPicker.js';
+import { fetchMessages, fetchNotifications, markNotificationsRead } from '../api/communicationApi.js';
+import { changePasswordApi } from '../api/authApi.js';
 
 export default function UserDashboard({ onSelectListing, onExplore }) {
   const { user, isAuthenticated, openAuthModal, logout, updateUserProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'wishlist' | 'reviews' | 'settings'
+  const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' | 'wishlist' | 'messages' | 'reviews' | 'settings'
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   // Profile edit modal state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editBio, setEditBio] = useState('');
-  const [editAvatar, setEditAvatar] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState(null);
@@ -47,7 +54,6 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
     setEditName(user?.name || '');
     setEditPhone(user?.phone || '');
     setEditBio(user?.bio || '');
-    setEditAvatar(user?.avatar || '');
     setProfileSaveSuccess(false);
     setProfileSaveError(null);
     setIsEditingProfile(true);
@@ -63,7 +69,6 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
         name: editName,
         phone: editPhone,
         bio: editBio,
-        avatar: editAvatar,
       });
       setProfileSaveSuccess(true);
       setTimeout(() => {
@@ -86,10 +91,43 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
   const [favorites, setFavorites] = useState([]);
   const [favoritesLoading, setFavoritesLoading] = useState(true);
   const [favoritesError, setFavoritesError] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [notificationsList, setNotificationsList] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [activeCollection, setActiveCollection] = useState('All saved');
+  const [newCollectionName, setNewCollectionName] = useState('');
 
   // Currency & Settings state
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('INR');
   const [notifications, setNotifications] = useState(true);
+
+  useEffect(() => {
+    try {
+      setCollections(JSON.parse(localStorage.getItem('havenly_wishlist_collections') || '[]'));
+    } catch {
+      setCollections([]);
+    }
+  }, []);
+
+  const createCollection = (event) => {
+    event.preventDefault();
+    const name = newCollectionName.trim();
+    if (!name || collections.some((collection) => collection.name.toLowerCase() === name.toLowerCase())) return;
+    const next = [...collections, { name, listingIds: [] }];
+    setCollections(next);
+    setNewCollectionName('');
+    setActiveCollection(name);
+    localStorage.setItem('havenly_wishlist_collections', JSON.stringify(next));
+  };
+
+  const addToCollection = (listingId) => {
+    if (activeCollection === 'All saved') return;
+    const next = collections.map((collection) => collection.name === activeCollection && !collection.listingIds.includes(listingId)
+      ? { ...collection, listingIds: [...collection.listingIds, listingId] }
+      : collection);
+    setCollections(next);
+    localStorage.setItem('havenly_wishlist_collections', JSON.stringify(next));
+  };
 
   const loadBookings = async () => {
     setBookingsLoading(true);
@@ -98,7 +136,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
       const data = await fetchUserBookings();
       setBookings(data);
     } catch (err) {
-      setBookingsError(err.message || 'Unable to load reservations from MongoDB');
+      setBookingsError(err.message || 'Unable to load your reservations');
     } finally {
       setBookingsLoading(false);
     }
@@ -111,7 +149,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
       const data = await fetchUserFavorites();
       setFavorites(data);
     } catch (err) {
-      setFavoritesError(err.message || 'Unable to load favorites from MongoDB');
+      setFavoritesError(err.message || 'Unable to load your favorites');
     } finally {
       setFavoritesLoading(false);
     }
@@ -120,7 +158,31 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
   useEffect(() => {
     loadBookings();
     loadFavorites();
-  }, []);
+    if (isAuthenticated) {
+      fetchMessages().then((result) => setMessages(result.data || [])).catch(() => {});
+      fetchNotifications().then((result) => setNotificationsList(result.data || [])).catch(() => {});
+    }
+  }, [isAuthenticated]);
+
+  const unreadNotifications = notificationsList.filter((notification) => !notification.readAt).length;
+  const handleMarkNotificationsRead = async () => {
+
+      const handleChangePassword = async (event) => {
+        event.preventDefault();
+        setPasswordMessage('');
+        setPasswordError('');
+        try {
+          await changePasswordApi({ currentPassword, newPassword });
+          setCurrentPassword('');
+          setNewPassword('');
+          setPasswordMessage('Password changed successfully.');
+        } catch (error) {
+          setPasswordError(error.message);
+        }
+      };
+    await markNotificationsRead().catch(() => {});
+    setNotificationsList((current) => current.map((notification) => ({ ...notification, readAt: new Date().toISOString() })));
+  };
 
   const handleCancelBooking = async (bookingId) => {
     if (!window.confirm('Are you sure you want to cancel this reservation?')) return;
@@ -151,6 +213,9 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
   };
 
   const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length;
+  const visibleFavorites = activeCollection === 'All saved'
+    ? favorites
+    : favorites.filter((favorite) => collections.find((collection) => collection.name === activeCollection)?.listingIds.includes(favorite.listingId?._id || favorite.listingId));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 animate-fade-in">
@@ -188,7 +253,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                {user?.email || 'Browse resorts anonymously or log in with MongoDB'} · Member since{' '}
+                {user?.email || 'Browse resorts anonymously or sign in to save your favorites'} · Member since{' '}
                 {user?.createdAt ? new Date(user.createdAt).getFullYear() : '2026'}
               </p>
               <div className="flex items-center space-x-3 mt-2 text-xs text-slate-400">
@@ -197,7 +262,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                   <span>{isAuthenticated ? 'Identity Verified' : 'Standard Guest'}</span>
                 </span>
                 <span>·</span>
-                <span>MongoDB Connected</span>
+                <span>Member account active</span>
                 {!isAuthenticated ? (
                   <>
                     <span>·</span>
@@ -284,6 +349,15 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                 {favorites.length}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('messages')}
+            className={`flex items-center space-x-2 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${activeTab === 'messages' ? 'border-brand text-brand' : 'border-transparent text-airbnb-gray hover:text-airbnb-black'}`}
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Messages</span>
+            {messages.length > 0 && <span className="bg-sky-100 text-sky-800 text-[10px] font-bold px-2 py-0.5 rounded-full">{messages.length}</span>}
           </button>
 
           <button
@@ -378,7 +452,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                 const listing = booking.listingId || {};
                 const coverImage =
                   listing.images?.[0] ||
-                  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80';
+                  '/images/resorts/hotel-001.jpg';
 
                 const checkInFormatted = booking.checkIn
                   ? new Date(booking.checkIn).toLocaleDateString('en-US', {
@@ -439,7 +513,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                           <MapPin className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">
                             {listing.location?.city ? `${listing.location.city}, ` : ''}
-                            {listing.location?.country || 'Worldwide'}
+                            India
                           </span>
                         </p>
 
@@ -458,9 +532,9 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                     <div className="flex md:flex-col items-center md:items-end justify-between w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-airbnb-borderLight gap-3">
                       <div className="text-left md:text-right">
                         <div className="text-lg font-bold text-airbnb-black">
-                          ${booking.totalPrice?.toLocaleString() || 0}
+                          ₹{(booking.totalPriceINR || booking.totalPrice * 83 || 0).toLocaleString('en-IN')}
                         </div>
-                        <div className="text-[11px] text-airbnb-gray">Total paid · Saved in DB</div>
+                        <div className="text-[11px] text-airbnb-gray">Total paid · Confirmed trip</div>
                       </div>
 
                       <div className="flex items-center space-x-2">
@@ -497,15 +571,16 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
       {activeTab === 'wishlist' && (
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg sm:text-xl font-bold text-airbnb-black">Your Saved Resorts</h2>
-            <button
-              onClick={loadFavorites}
-              disabled={favoritesLoading}
-              className="flex items-center space-x-1.5 text-xs text-airbnb-gray hover:text-airbnb-black transition"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${favoritesLoading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
+            <div><h2 className="text-lg sm:text-xl font-bold text-airbnb-black">Your Saved Resorts</h2><p className="mt-1 text-xs text-airbnb-gray">Organize your next escapes into collections.</p></div>
+            <div className="flex items-center gap-2"><button onClick={loadFavorites} disabled={favoritesLoading} className="flex items-center space-x-1.5 text-xs text-airbnb-gray hover:text-airbnb-black transition"><RefreshCw className={`w-3.5 h-3.5 ${favoritesLoading ? 'animate-spin' : ''}`} /><span>Refresh</span></button></div>
+          </div>
+
+          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-airbnb-border bg-airbnb-bgSubtle/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => setActiveCollection('All saved')} className={`rounded-full px-3 py-2 text-xs font-bold transition ${activeCollection === 'All saved' ? 'bg-[#24332f] text-white' : 'bg-white text-airbnb-gray hover:bg-airbnb-bgSubtle'}`}>All saved</button>
+              {collections.map((collection) => <button key={collection.name} onClick={() => setActiveCollection(collection.name)} className={`rounded-full px-3 py-2 text-xs font-bold transition ${activeCollection === collection.name ? 'bg-brand text-white' : 'bg-white text-airbnb-gray hover:bg-airbnb-bgSubtle'}`}>{collection.name} <span className="ml-1 opacity-60">{collection.listingIds.length}</span></button>)}
+            </div>
+            <form onSubmit={createCollection} className="flex items-center gap-2"><input value={newCollectionName} onChange={(event) => setNewCollectionName(event.target.value)} placeholder="New collection" className="w-32 rounded-full border border-airbnb-border bg-white px-3 py-2 text-xs outline-none sm:w-40" /><button type="submit" className="flex items-center gap-1 rounded-full bg-brand px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-hover"><FolderPlus className="h-3.5 w-3.5" />Create</button></form>
           </div>
 
           {favoritesLoading ? (
@@ -520,7 +595,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
               <h3 className="font-semibold text-rose-900 text-sm">Failed to Load Wishlist</h3>
               <p className="text-xs text-rose-700">{favoritesError}</p>
             </div>
-          ) : favorites.length === 0 ? (
+          ) : visibleFavorites.length === 0 ? (
             <div className="text-center py-16 px-4 border border-dashed border-airbnb-border rounded-3xl bg-airbnb-bgSubtle/40 max-w-md mx-auto space-y-4">
               <div className="w-16 h-16 bg-rose-50 border border-rose-200 rounded-full flex items-center justify-center mx-auto text-brand shadow-sm">
                 <Heart className="w-8 h-8 stroke-[1.5]" />
@@ -541,12 +616,12 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favorites.map((fav) => {
+              {visibleFavorites.map((fav) => {
                 const listing = fav.listingId || {};
                 const listingId = listing._id || fav.listingId;
                 const coverImage =
                   listing.images?.[0] ||
-                  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80';
+                  '/images/resorts/hotel-001.jpg';
 
                 return (
                   <div
@@ -583,11 +658,12 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                           {listing.title || 'Luxury Resort'}
                         </h4>
                         <p className="text-xs text-airbnb-black font-bold mt-1">
-                          ${listing.pricePerNight || 385} <span className="font-normal text-airbnb-gray">/ night</span>
+                          ₹{(listing.pricePerNightINR || listing.pricePerNight * 83 || 385 * 83).toLocaleString('en-IN')} <span className="font-normal text-airbnb-gray">/ night</span>
                         </p>
                       </div>
 
                       <div className="pt-3 border-t border-airbnb-borderLight flex items-center justify-between">
+                        <button onClick={() => addToCollection(listingId)} className="mr-2 flex items-center gap-1 rounded-lg border border-airbnb-border px-2 py-2 text-[10px] font-bold text-airbnb-gray hover:bg-airbnb-bgSubtle" title="Add to selected collection"><Plus className="h-3 w-3" />Save</button>
                         <button
                           onClick={() => onSelectListing(listingId)}
                           className="w-full bg-slate-900 hover:bg-black text-white text-xs font-semibold py-2 rounded-xl transition text-center"
@@ -604,7 +680,15 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
         </div>
       )}
 
-      {/* Tab 3: My Reviews */}
+      {activeTab === 'messages' && (
+        <div className="max-w-3xl space-y-5">
+          <div className="flex items-center justify-between"><div><h2 className="text-lg sm:text-xl font-bold text-airbnb-black">Messages</h2><p className="mt-1 text-xs text-airbnb-gray">Keep every host conversation in one place.</p></div><button onClick={handleMarkNotificationsRead} className="flex items-center gap-1.5 rounded-full border border-airbnb-border px-3 py-2 text-xs font-semibold text-airbnb-gray hover:bg-airbnb-bgSubtle"><Bell className="h-3.5 w-3.5" />{unreadNotifications} notifications</button></div>
+          {notificationsList.length > 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900"><div className="font-bold">Latest updates</div>{notificationsList.slice(0, 3).map((notification) => <p key={notification._id} className="mt-1">{notification.title}: {notification.body}</p>)}</div>}
+          <div className="space-y-3">{messages.length === 0 ? <div className="rounded-2xl border border-dashed border-airbnb-border p-10 text-center"><MessageCircle className="mx-auto h-8 w-8 text-airbnb-gray" /><p className="mt-3 text-sm font-bold text-airbnb-black">No messages yet</p><p className="mt-1 text-xs text-airbnb-gray">Host conversations will appear here.</p></div> : messages.map((message) => <div key={message._id} className="rounded-2xl border border-airbnb-border bg-white p-4"><div className="flex items-center justify-between"><span className="text-sm font-bold text-airbnb-black">{message.senderId?.name || 'Havenly host'}</span><span className="text-[11px] text-airbnb-gray">{new Date(message.createdAt).toLocaleDateString()}</span></div><p className="mt-2 text-sm text-airbnb-gray">{message.body}</p></div>)}</div>
+        </div>
+      )}
+
+      {/* Tab 4: My Reviews */}
       {activeTab === 'reviews' && (
         <div className="max-w-3xl space-y-6">
           <h2 className="text-lg sm:text-xl font-bold text-airbnb-black">Guest Reviews Contributed</h2>
@@ -612,7 +696,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-sm text-airbnb-black">Villa Paradiso - Cliffside Luxury Ocean Villa</h4>
-                <p className="text-xs text-airbnb-gray">Amalfi, Italy · Stayed August 2026</p>
+                <p className="text-xs text-airbnb-gray">Udaipur, India · Stayed August 2026</p>
               </div>
               <div className="flex items-center space-x-0.5">
                 {[1, 2, 3, 4, 5].map((s) => (
@@ -629,7 +713,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-sm text-airbnb-black">Kandolhu Island Overwater Sanctuary</h4>
-                <p className="text-xs text-airbnb-gray">North Ari Atoll, Maldives · Stayed July 2026</p>
+                <p className="text-xs text-airbnb-gray">Udaipur, India · Stayed July 2026</p>
               </div>
               <div className="flex items-center space-x-0.5">
                 {[1, 2, 3, 4, 5].map((s) => (
@@ -638,7 +722,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
               </div>
             </div>
             <p className="text-xs text-airbnb-black leading-relaxed">
-              "Unmatched reef access directly from the private sundeck. The sunset catamaran trip arranged by Farhad was the highlight of our Maldives trip."
+              "A beautiful palace stay with thoughtful service and a memorable sunset boat ride on Lake Pichola."
             </p>
           </div>
         </div>
@@ -660,9 +744,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                 onChange={(e) => setCurrency(e.target.value)}
                 className="text-xs font-semibold px-3 py-1.5 border border-airbnb-border rounded-lg bg-white outline-none cursor-pointer"
               >
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
+                <option value="INR">INR (₹)</option>
               </select>
             </div>
 
@@ -681,12 +763,19 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
 
             <div className="pt-4 flex items-center justify-between">
               <div>
-                <div className="font-semibold text-airbnb-black">Local MongoDB Instance</div>
-                <div className="text-xs text-airbnb-gray">mongodb://localhost:27017/Airbnb</div>
+                <div className="font-semibold text-airbnb-black">Account sync</div>
+                <div className="text-xs text-airbnb-gray">Your profile and trips stay up to date</div>
               </div>
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
                 Connected
               </span>
+            </div>
+
+            <div className="pt-4">
+              <div className="mb-3"><div className="font-semibold text-airbnb-black">Password & security</div><div className="text-xs text-airbnb-gray">Update your password to keep your account protected.</div></div>
+              {passwordMessage && <p className="mb-3 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-700">{passwordMessage}</p>}
+              {passwordError && <p className="mb-3 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{passwordError}</p>}
+              <form onSubmit={handleChangePassword} className="grid gap-3 sm:grid-cols-2"><input type="password" required minLength="6" placeholder="Current password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="rounded-xl border border-airbnb-border bg-white px-3 py-2.5 text-xs outline-none focus:border-brand" /><input type="password" required minLength="6" placeholder="New password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="rounded-xl border border-airbnb-border bg-white px-3 py-2.5 text-xs outline-none focus:border-brand" /><button type="submit" className="rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition hover:bg-brand-hover sm:col-span-2">Change password</button></form>
             </div>
           </div>
         </div>
@@ -718,7 +807,7 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
               {profileSaveSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center space-x-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span className="font-semibold">Profile & photo updated successfully in MongoDB!</span>
+                  <span className="font-semibold">Profile updated successfully!</span>
                 </div>
               )}
 
@@ -730,13 +819,6 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
               )}
 
               <form onSubmit={handleSaveProfile} className="space-y-4">
-                {/* Avatar Picker with Device Upload & Suggestions */}
-                <AvatarPicker
-                  value={editAvatar}
-                  onChange={setEditAvatar}
-                  label="Update Profile Picture (From Device or Suggestions)"
-                />
-
                 {/* Name */}
                 <div>
                   <label className="block text-xs font-bold uppercase text-airbnb-black mb-1">
@@ -794,12 +876,12 @@ export default function UserDashboard({ onSelectListing, onExplore }) {
                   {isSavingProfile ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                      <span>Saving to MongoDB...</span>
+                      <span>Saving your changes...</span>
                     </>
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      <span>Save Changes to MongoDB</span>
+                      <span>Save Changes</span>
                     </>
                   )}
                 </button>

@@ -59,12 +59,26 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     throw new AppError('Check-in date cannot be in the past', 400);
   }
 
+  checkInDate.setHours(12, 0, 0, 0);
+  checkOutDate.setHours(12, 0, 0, 0);
+
   // Validate checkout is strictly after checkin
   const diffMs = checkOutDate.getTime() - checkInDate.getTime();
   const nights = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
   if (nights <= 0) {
     throw new AppError('Checkout date must be after check-in date', 400);
+  }
+
+  const overlappingBooking = await Booking.findOne({
+    listingId,
+    status: { $in: ['pending', 'confirmed'] },
+    checkIn: { $lt: checkOutDate },
+    checkOut: { $gt: checkInDate },
+  });
+
+  if (overlappingBooking) {
+    throw new AppError('These dates are no longer available. Please choose different dates.', 409);
   }
 
   // 4. Validate and structure guests
@@ -82,13 +96,20 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     );
   }
 
-  // 5. Server-side authoritative price recalculation
+  // 5. Server-side authoritative price recalculation (USD and INR)
   const nightlyRate = listing.pricePerNight;
   const basePrice = nightlyRate * nights;
   const cleaningFee = listing.cleaningFee !== undefined ? listing.cleaningFee : 150;
   const serviceFee = listing.serviceFee !== undefined ? listing.serviceFee : Math.round(basePrice * 0.142);
   const taxes = Math.round((basePrice + cleaningFee) * 0.085);
   const totalPrice = basePrice + cleaningFee + serviceFee + taxes;
+
+  const nightlyRateINR = listing.pricePerNightINR || Math.round(nightlyRate * 83);
+  const basePriceINR = nightlyRateINR * nights;
+  const cleaningFeeINR = listing.cleaningFeeINR !== undefined ? listing.cleaningFeeINR : Math.round(cleaningFee * 83);
+  const serviceFeeINR = listing.serviceFeeINR !== undefined ? listing.serviceFeeINR : Math.round(basePriceINR * 0.142);
+  const taxesINR = Math.round((basePriceINR + cleaningFeeINR) * 0.085);
+  const totalPriceINR = basePriceINR + cleaningFeeINR + serviceFeeINR + taxesINR;
 
   // 6. Save booking to MongoDB
   const booking = await Booking.create({
@@ -98,6 +119,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     checkOut: checkOutDate,
     guests: guestData,
     totalPrice,
+    totalPriceINR,
     status: 'confirmed',
     createdAt: new Date(),
   });
@@ -121,16 +143,40 @@ export const createBooking = asyncHandler(async (req, res, next) => {
       status: booking.status,
       pricing: {
         nightlyRate,
+        nightlyRateINR,
         nights,
         basePrice,
+        basePriceINR,
         cleaningFee,
+        cleaningFeeINR,
         serviceFee,
+        serviceFeeINR,
         taxes,
+        taxesINR,
         totalPrice,
+        totalPriceINR,
       },
       createdAt: booking.createdAt,
     },
   });
+});
+
+export const getAvailability = asyncHandler(async (req, res, next) => {
+  const { listingId, from, to } = req.query;
+  if (!listingId || !mongoose.Types.ObjectId.isValid(listingId)) {
+    throw new AppError('A valid listingId is required', 400);
+  }
+
+  const start = from ? new Date(from) : new Date();
+  const end = to ? new Date(to) : new Date(start.getFullYear(), start.getMonth() + 3, start.getDate());
+  const bookings = await Booking.find({
+    listingId,
+    status: { $in: ['pending', 'confirmed'] },
+    checkIn: { $lt: end },
+    checkOut: { $gt: start },
+  }).select('checkIn checkOut -_id');
+
+  return res.status(200).json({ success: true, data: bookings });
 });
 
 /**
@@ -190,6 +236,7 @@ export const cancelBooking = asyncHandler(async (req, res, next) => {
 
 export default {
   createBooking,
+  getAvailability,
   getBookings,
   cancelBooking,
 };
