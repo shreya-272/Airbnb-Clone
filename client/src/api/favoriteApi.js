@@ -1,6 +1,7 @@
 /**
  * API client to manage Favorites synchronized with MongoDB and localStorage
  */
+import { API_BASE_URL } from './apiConfig.js';
 
 const SESSION_STORAGE_KEY = 'airbnb_session_id';
 const LOCAL_FAVORITES_KEY = 'airbnb_local_favorites';
@@ -26,7 +27,7 @@ export const fetchUserFavorites = async () => {
   const sessionId = getSessionId();
 
   try {
-    const res = await fetch('/api/favorites', {
+    const res = await fetch(`${API_BASE_URL}/api/favorites`, {
       headers: {
         'x-session-id': sessionId,
       },
@@ -62,7 +63,7 @@ export const checkFavoriteStatus = async (listingId) => {
   const sessionId = getSessionId();
 
   try {
-    const res = await fetch(`/api/favorites?listingId=${listingId}`, {
+    const res = await fetch(`${API_BASE_URL}/api/favorites?listingId=${listingId}`, {
       headers: {
         'x-session-id': sessionId,
       },
@@ -99,7 +100,7 @@ export const addFavorite = async (listingId) => {
   const sessionId = getSessionId();
 
   try {
-    const res = await fetch('/api/favorites', {
+    const res = await fetch(`${API_BASE_URL}/api/favorites`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -139,7 +140,7 @@ export const removeFavorite = async (listingId) => {
   const sessionId = getSessionId();
 
   try {
-    const res = await fetch(`/api/favorites/${listingId}`, {
+    const res = await fetch(`${API_BASE_URL}/api/favorites/${listingId}`, {
       method: 'DELETE',
       headers: {
         'x-session-id': sessionId,
@@ -201,4 +202,3 @@ export default {
   addFavorite,
   removeFavorite,
 };
-

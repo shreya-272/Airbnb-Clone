@@ -1,4 +1,5 @@
 import { getSessionId } from './favoriteApi.js';
+import { API_BASE_URL } from './apiConfig.js';
 
 /**
  * Submit a reservation request to the backend.
@@ -16,7 +17,7 @@ export const submitBooking = async ({ listingId, checkIn, checkOut, guests }) =>
   const sessionId = getSessionId();
 
   try {
-    const response = await fetch('/api/bookings', {
+    const response = await fetch(`${API_BASE_URL}/api/bookings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +61,7 @@ export const fetchUserBookings = async () => {
   const sessionId = getSessionId();
 
   try {
-    const response = await fetch('/api/bookings', {
+    const response = await fetch(`${API_BASE_URL}/api/bookings`, {
       headers: {
         'x-session-id': sessionId,
       },
@@ -96,7 +97,7 @@ export const cancelBooking = async (bookingId) => {
   if (!bookingId) throw new Error('Booking ID is required');
 
   try {
-    const response = await fetch(`/api/bookings/${bookingId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}`, {
       method: 'DELETE',
     });
 
@@ -125,5 +126,4 @@ export default {
   fetchUserBookings,
   cancelBooking,
 };
-
 

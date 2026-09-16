@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const API_BASE_URL = 'http://localhost:5000';
+import { API_BASE_URL } from './apiConfig.js';
 
 /**
  * Fetch a single listing by its MongoDB ID from the backend API.
@@ -18,15 +17,9 @@ export const fetchListingById = async (id = '6aa7d647bda80dd066fe3c61') => {
 
   let response;
   try {
-    // Primary: use relative proxy path
-    try {
-      response = await fetch(`/api/listings/${id}`);
-    } catch {
-      // Secondary: direct backend server URL
-      response = await fetch(`${API_BASE_URL}/api/listings/${id}`);
-    }
+    response = await fetch(`${API_BASE_URL}/api/listings/${id}`);
   } catch (networkErr) {
-    const error = new Error('Network connection failed. Unable to reach backend server at http://localhost:5000.');
+    const error = new Error(`Network connection failed. Unable to reach backend server at ${API_BASE_URL}.`);
     error.isNetworkError = true;
     error.statusCode = 0;
     console.error(`[listingApi] Network error fetching listing ${id}:`, networkErr);
@@ -109,12 +102,7 @@ export const fetchAllListings = async ({ category = '', search = '' } = {}) => {
   const queryString = params.toString() ? `?${params.toString()}` : '';
 
   try {
-    let response;
-    try {
-      response = await fetch(`/api/listings${queryString}`);
-    } catch {
-      response = await fetch(`${API_BASE_URL}/api/listings${queryString}`);
-    }
+    const response = await fetch(`${API_BASE_URL}/api/listings${queryString}`);
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
@@ -141,5 +129,4 @@ export default {
   fetchAllListings,
   useListing,
 };
-
 

@@ -1,7 +1,8 @@
 import { getStoredToken } from './authApi.js';
+import { API_BASE_URL } from './apiConfig.js';
 
 const request = async (path, options = {}) => {
-  const response = await fetch(`/api/${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api/${path}`, {
     ...options,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getStoredToken()}`, ...(options.headers || {}) },
   });

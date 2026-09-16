@@ -1,4 +1,6 @@
-const API_BASE_URL = '/api/auth';
+import { API_BASE_URL as SERVER_URL } from './apiConfig.js';
+
+const API_BASE_URL = `${SERVER_URL}/api/auth`;
 const TOKEN_KEY = 'airbnb_auth_token';
 const USER_KEY = 'airbnb_auth_user';
 
@@ -176,4 +178,3 @@ export const changePasswordApi = async ({ currentPassword, newPassword }) => {
   if (!response.ok) throw new Error(data.message || 'Unable to change password');
   return data;
 };
-

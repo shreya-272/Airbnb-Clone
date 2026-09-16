@@ -1,6 +1,7 @@
 /**
  * API client to fetch and submit listing reviews
  */
+import { API_BASE_URL } from './apiConfig.js';
 
 /**
  * Fetch all reviews for a listing from MongoDB.
@@ -12,7 +13,7 @@ export const fetchListingReviews = async (listingId) => {
   if (!listingId) return { count: 0, categoryAverages: {}, data: [] };
 
   try {
-    const response = await fetch(`/api/listings/${listingId}/reviews`);
+    const response = await fetch(`${API_BASE_URL}/api/listings/${listingId}/reviews`);
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -44,7 +45,7 @@ export const submitReview = async (listingId, reviewData) => {
   if (!listingId) throw new Error('Listing ID is required');
 
   try {
-    const response = await fetch(`/api/listings/${listingId}/reviews`, {
+    const response = await fetch(`${API_BASE_URL}/api/listings/${listingId}/reviews`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -76,4 +77,3 @@ export default {
   fetchListingReviews,
   submitReview,
 };
-
